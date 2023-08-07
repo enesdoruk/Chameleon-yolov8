@@ -9,7 +9,7 @@ CLASS_NAMES = {'Car': 0, 'Van':1, 'Truck':2, 'Pedestrian':3, \
 
 
 image_path = os.path.expanduser('~') + '/synDet/datasets/kitti/images'
-label_path = os.path.expanduser('~') + '/sawYolo/datasets/kitti/labels'
+label_path = os.path.expanduser('~') + '/yolov8/datasets/kitti/labels'
 
 new_train_img_path = 'kitti_yolo/images/train'
 new_test_img_path = 'kitti_yolo/images/test'
