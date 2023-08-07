@@ -122,10 +122,11 @@ class BaseTrainer:
                 self.args.data = self.data['yaml_file']  # for validating 'yolo train data=url.zip' usage
         except Exception as e:
             raise RuntimeError(emojis(f"Dataset '{clean_url(self.args.data)}' error ❌ {e}")) from e
-        self.trainset, self.testset = self.get_dataset(self.data)
+        self.trainset_s, self.testset_s = self.get_dataset(self.data)
 
 
-        self.data = check_det_dataset(self.args.data)
+        self.data_t = check_det_dataset(self.args.data_t)
+        self.trainset_t, self.testset_t = self.get_dataset(self.data_t)
 
         self.ema = None
 
@@ -250,10 +251,12 @@ class BaseTrainer:
 
         # Dataloaders
         batch_size = self.batch_size // world_size if world_size > 1 else self.batch_size
-        self.train_loader = self.get_dataloader(self.trainset, batch_size=batch_size, rank=RANK, mode='train')
+        self.train_loader = self.get_dataloader(self.trainset_s, batch_size=batch_size, rank=RANK, mode='train')
+        self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=batch_size, rank=RANK, mode='train')
 
         if RANK in (-1, 0):
-            self.test_loader = self.get_dataloader(self.testset, batch_size=batch_size * 2, rank=-1, mode='val')
+            self.test_loader = self.get_dataloader(self.testset_s, batch_size=batch_size * 2, rank=-1, mode='val')
+            self.test_loader_t = self.get_dataloader(self.testset_t, batch_size=batch_size * 2, rank=-1, mode='val')
             self.validator = self.get_validator()
             metric_keys = self.validator.metrics.keys + self.label_loss_items(prefix='val')
             self.metrics = dict(zip(metric_keys, [0] * len(metric_keys)))  # TODO: init metrics for plot_results()?
@@ -275,7 +278,7 @@ class BaseTrainer:
         self.epoch_time_start = time.time()
         self.train_time_start = time.time()
 
-        nb = len(self.train_loader)
+        nb = min(len(self.train_loader), len(self.train_loader_t))
         nw = max(round(self.args.warmup_epochs * nb), 100)  # number of warmup iterations
         last_opt_step = -1
         self.run_callbacks('on_train_start')
@@ -293,7 +296,7 @@ class BaseTrainer:
             self.model.train()
             if RANK != -1:
                 self.train_loader.sampler.set_epoch(epoch)
-            pbar = enumerate(self.train_loader)
+            pbar = enumerate(zip(self.train_loader, self.train_loader_t))
             # Update dataloader attributes (optional)
             if epoch == (self.epochs - self.args.close_mosaic):
                 LOGGER.info('Closing dataloader mosaic')
@@ -301,14 +304,19 @@ class BaseTrainer:
                     self.train_loader.dataset.mosaic = False
                 if hasattr(self.train_loader.dataset, 'close_mosaic'):
                     self.train_loader.dataset.close_mosaic(hyp=self.args)
+                if hasattr(self.train_loader_t.dataset, 'mosaic'):
+                    self.train_loader_t.dataset.mosaic = False
+                if hasattr(self.train_loader_t.dataset, 'close_mosaic'):
+                    self.train_loader_t.dataset.close_mosaic(hyp=self.args)
                 self.train_loader.reset()
+                self.train_loader_t.reset()
 
             if RANK in (-1, 0):
                 LOGGER.info(self.progress_string())
-                pbar = tqdm(enumerate(self.train_loader), total=nb, bar_format=TQDM_BAR_FORMAT)
+                pbar = tqdm(enumerate(zip(self.train_loader, self.train_loader_t)), total=nb, bar_format=TQDM_BAR_FORMAT)
             self.tloss = None
             self.optimizer.zero_grad()
-            for i, batch in pbar:
+            for i, (batch, target) in pbar:
                 self.run_callbacks('on_train_batch_start')
                 # Warmup
                 ni = i + nb * epoch
@@ -325,8 +333,9 @@ class BaseTrainer:
                 # Forward
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
+                    target = self.preprocess_batch(target)
   
-                    preds = self.model(batch['img'])
+                    preds = self.model(batch['img'], target['img'][0])
                     self.loss, self.loss_items = self.criterion(preds, batch)
                     if RANK != -1:
                         self.loss *= world_size

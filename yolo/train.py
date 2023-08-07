@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, os.path.expanduser('~') + "/yolov8")
+sys.path.insert(0, os.path.expanduser('~') + "/sawYolo")
 
 from nn.tasks import DetectionModel
 from yolo.val import *
@@ -21,7 +21,7 @@ from yolo.utils.tal import TaskAlignedAssigner, dist2bbox, make_anchors
 from yolo.utils.torch_utils import de_parallel, torch_distributed_zero_first
 
 import wandb
-wandb.init(project='Yolo8', name='yolov8-default', sync_tensorboard=True)
+wandb.init(project='syndetYolo8', name='yolov8-default', sync_tensorboard=True)
 
 
 # BaseTrainer python usage

@@ -507,7 +507,7 @@ def get_default_args(func):
     return {k: v.default for k, v in signature.parameters.items() if v.default is not inspect.Parameter.empty}
 
 
-def get_user_config_dir(sub_dir='yolov8'):
+def get_user_config_dir(sub_dir='sawYolo'):
     """
     Get the user config directory.
 
