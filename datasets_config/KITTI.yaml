@@ -1,0 +1,13 @@
+path: /home/adastec/syndet_datasets/kitti_yolo
+train: 
+  - images/test
+val: 
+  - images/test
+test: 
+  - /home/adastec/syndet_datasets/nuimages_yolo/images/test
+
+names:
+  0: Car
+  1: Truck
+  2: Pedestrian
+  3: Cyclist

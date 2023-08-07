@@ -1,0 +1,14 @@
+path: /home/adastec/sawYolo/datasets/presil_yolo
+train: 
+  - images/train
+val: 
+  - images/test
+test: 
+  - /home/adastec/sawYolo/datasets/nuimages_yolo/images/test
+
+# Classes
+names:
+  0: Car
+  1: Truck
+  2: Pedestrian
+  3: Cyclist
