@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 
 import os
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/yolov8")
+sys.path.insert(0, os.path.expanduser('~') + "/sawYolo")
 
 from SawYOLO.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
 
@@ -56,13 +56,13 @@ class DetectionModel(nn.Module):
         if isinstance(m, (Detect)):
             s = 256 
             m.inplace = True
-            forward = lambda x:  self.forward(x)
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
+            forward = lambda x, target:  self.forward(x, target)
+            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s), torch.zeros(1, 3, s, s))])  
             self.stride = m.stride
             m.bias_init() 
 
 
-    def forward(self, x):
+    def forward(self, x, target):
         b1 = self.model[0](x)
   
         b2 = self.model[1](b1)
