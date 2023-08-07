@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/sawYolo")
+sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
 
 from nn.autobackend import (check_class_names, AutoBackend)
 from nn.autoshape import (AutoShape, Detections)

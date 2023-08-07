@@ -1,10 +1,10 @@
-path: /home/adastec/sawYolo/datasets/presil_yolo
+path: /home/adastec/syndet-yolo/datasets/presil_yolo
 train: 
   - images/train
 val: 
   - images/test
 test: 
-  - /home/adastec/sawYolo/datasets/nuimages_yolo/images/test
+  - /home/adastec/syndet-yolo/datasets/nuimages_yolo/images/test
 
 # Classes
 names:

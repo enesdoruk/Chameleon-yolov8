@@ -7,7 +7,7 @@ import torchvision.transforms as transforms
 
 import os
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/sawYolo")
+sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
 
 from SawYOLO.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
 

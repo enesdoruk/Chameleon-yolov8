@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, os.path.expanduser('~') + "/sawYolo")
+sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
 
 from nn.tasks import DetectionModel
 from yolo.val import *

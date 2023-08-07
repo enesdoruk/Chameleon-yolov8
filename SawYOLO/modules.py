@@ -4,7 +4,7 @@ import math
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, os.path.expanduser('~') + "/sawYolo")
+sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
 
 from yolo.utils.tal import dist2bbox, make_anchors
 

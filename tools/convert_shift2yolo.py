@@ -6,8 +6,8 @@ from tqdm import tqdm
 
 CLASS_NAMES = {'pedestrian':0, 'car':1, 'truck':2, 'bus':3, 'motorcycle':4, 'bicycle':5}
 
-image_path = os.path.expanduser('~') + '/sawYolo/datasets/SHIFT/images'
-label_path = os.path.expanduser('~') + '/sawYolo/datasets/SHIFT'
+image_path = os.path.expanduser('~') + '/syndet-yolo/datasets/SHIFT/images'
+label_path = os.path.expanduser('~') + '/syndet-yolo/datasets/SHIFT'
 
 W = 1280 
 H = 800

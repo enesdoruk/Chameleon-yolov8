@@ -4,8 +4,8 @@ import shutil
 from tqdm import tqdm
 
 
-image_path = os.path.expanduser('~') + '/sawYolo/datasets/presil/img'
-label_path = os.path.expanduser('~') + '/sawYolo/datasets/presil/lab'
+image_path = os.path.expanduser('~') + '/syndet-yolo/datasets/presil/img'
+label_path = os.path.expanduser('~') + '/syndet-yolo/datasets/presil/lab'
 
 CLASS_NAMES = {'Car': 0, 'Pedestrian': 1, 'Cyclist': 2, 'Truck': 3, 'Person_sitting': 4, 'Motorbike': 5, 'Trailer': 6, \
                'Bus': 7, 'Railed': 8, 'Airplane': 9, 'Boat': 10, 'Animal': 11, 'DontCare': 12, 'Misc': 13, 'Van': 14, 'Tram': 15}
