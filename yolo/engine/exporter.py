@@ -185,7 +185,7 @@ class Exporter:
         model.float()
         model = model.fuse()
         for k, m in model.named_modules():
-            if isinstance(m, (Detect, Segment)):
+            if isinstance(m, Detect):
                 m.dynamic = self.args.dynamic
                 m.export = True
                 m.format = self.args.format
@@ -302,14 +302,11 @@ class Exporter:
         LOGGER.info(f'\n{prefix} starting export with onnx {onnx.__version__} opset {opset_version}...')
         f = str(self.file.with_suffix('.onnx'))
 
-        output_names = ['output0', 'output1'] if isinstance(self.model, SegmentationModel) else ['output0']
+        output_names = 'output0'
         dynamic = self.args.dynamic
         if dynamic:
             dynamic = {'images': {0: 'batch', 2: 'height', 3: 'width'}}  # shape(1,3,640,640)
-            if isinstance(self.model, SegmentationModel):
-                dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
-                dynamic['output1'] = {0: 'batch', 2: 'mask_height', 3: 'mask_width'}  # shape(1,32,160,160)
-            elif isinstance(self.model, DetectionModel):
+            if isinstance(self.model, DetectionModel):
                 dynamic['output0'] = {0: 'batch', 1: 'anchors'}  # shape(1,25200,85)
 
         torch.onnx.export(

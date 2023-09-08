@@ -8,7 +8,8 @@ import torch.nn as nn
 
 sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
 
-from nn.tasks import DetectionModel
+from syndet.chameleonYOLO import DetectionModel
+from syndet.gradientreversal import DomainAdaptationModel
 from yolo.val import *
 from yolo.data.build import build_dataloader, build_yolo_dataset
 from yolo.data.dataloaders.v5loader import create_dataloader
@@ -90,25 +91,29 @@ class DetectionTrainer(BaseTrainer):
 
     def get_model(self, cfg=None, weights=None, verbose=True):
         """Return a YOLO detection model."""
+        #from nn.tasks import DetectionModel
         #model = DetectionModel(cfg, nc=self.data['nc'], verbose=verbose and RANK == -1)
-        #if weights:
-        #    model.load(weights)
-        from SawYOLO.sawyolo import DetectionModel
+
         model = DetectionModel()
         if weights:
             model.load(weights)
-        return model
+        model_disc = DomainAdaptationModel(num_classes=1, input_dim=1024*20*20, alpha=1.)
+        
+        return model, model_disc
 
     def get_validator(self):
         """Returns a DetectionValidator for YOLO model validation."""
-        self.loss_names = 'box_loss', 'cls_loss', 'dfl_loss'
+        self.loss_names = 'box_loss', 'cls_loss', 'dfl_loss', 'adv_loss'
         return DetectionValidator(self.test_loader, save_dir=self.save_dir, args=copy(self.args))
 
-    def criterion(self, preds, batch):
+    def criterion(self, preds, batch, preds_disc=None, disc_labels=None):
         """Compute loss for YOLO prediction and ground-truth."""
         if not hasattr(self, 'compute_loss'):
             self.compute_loss = Loss(de_parallel(self.model))
-        return self.compute_loss(preds, batch)
+        if preds_disc is not None and disc_labels is not None:
+            return self.compute_loss(preds, batch, preds_disc, disc_labels)
+        else:
+            return self.compute_loss(preds, batch)
 
     def label_loss_items(self, loss_items=None, prefix='train'):
         """
@@ -169,6 +174,7 @@ class Loss:
         self.assigner = TaskAlignedAssigner(topk=10, num_classes=self.nc, alpha=0.5, beta=6.0)
         self.bbox_loss = BboxLoss(m.reg_max - 1, use_dfl=self.use_dfl).to(device)
         self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
+        self.disc_criterion = nn.BCEWithLogitsLoss().to(device)
 
     def preprocess(self, targets, batch_size, scale_tensor):
         """Preprocesses the target counts and matches with the input batch size to output a tensor."""
@@ -196,9 +202,11 @@ class Loss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, preds, batch):
+    def __call__(self, preds, batch, preds_disc=None, disc_labels=None):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
-        loss = torch.zeros(3, device=self.device)  # box, cls, dfl
+        
+        loss = torch.zeros(4, device=self.device)  # box, cls, dfl
+
         feats = preds[1] if isinstance(preds, tuple) else preds
         pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
             (self.reg_max * 4, self.nc), 1)
@@ -239,6 +247,10 @@ class Loss:
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
+        
+        if preds_disc is not None and disc_labels is not None:
+            disc_loss = self.disc_criterion(preds_disc, disc_labels)
+            loss[3] = disc_loss
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
 

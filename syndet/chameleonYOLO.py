@@ -1,6 +1,8 @@
 from PIL import Image
 
+import cv2
 import torch
+import numpy as np
 import torch.nn as nn
 from torchsummary import summary
 import torchvision.transforms as transforms
@@ -9,7 +11,8 @@ import os
 import sys
 sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
 
-from SawYOLO.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
+from syndet.gradientreversal import DomainAdaptationModel
+from syndet.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
 
 
 class DetectionModel(nn.Module):
@@ -56,13 +59,30 @@ class DetectionModel(nn.Module):
         if isinstance(m, (Detect)):
             s = 256 
             m.inplace = True
-            forward = lambda x, target:  self.forward(x, target)
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s), torch.zeros(1, 3, s, s))])  
+            forward = lambda x:  self.forward(x)
+            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
             self.stride = m.stride
             m.bias_init() 
 
 
-    def forward(self, x, target):
+    def forward(self, x, target=None):  
+        if target is not None:
+            b1_t = self.model[0](target)
+    
+            b2_t = self.model[1](b1_t)
+            b3_t = self.model[2](b2_t)
+
+            b4_t = self.model[3](b3_t)
+            b5_t = self.model[4](b4_t)
+
+            b6_t = self.model[5](b5_t)
+            b7_t = self.model[6](b6_t)
+
+            b8_t = self.model[7](b7_t)
+            b9_t = self.model[8](b8_t)
+            b10_t = self.model[9](b9_t)
+        
+               
         b1 = self.model[0](x)
   
         b2 = self.model[1](b1)
@@ -95,7 +115,10 @@ class DetectionModel(nn.Module):
         h22 = self.model[21](h21)
         h23 = self.model[22]([h22, h19, h16])      
 
-        return h23
+        if target is not None:
+            return h23, b10, b10_t
+        else:
+            return h23
 
 
 
@@ -111,12 +134,21 @@ if __name__ == "__main__":
 
     model = DetectionModel().to("cuda")
     model.eval()
+    
+    model_disc = DomainAdaptationModel(num_classes=1, input_channels=1024).to("cuda")
+    model_disc.eval()
 
     #summary(model, (3,640,640))
     #print(model))
 
     with torch.no_grad():
-        out = model(img)
+        out, source_feat, target_feat = model(img, img)
+        print(source_feat.shape)
+        
+        out_disc_source = model_disc(source_feat, 2) 
+        out_disc_target = model_disc(target_feat, 2) 
+        print(out_disc_source)
+        print(out_disc_target)     
 
     """ import mmcv
     from mmengine.visualization import Visualizer
@@ -126,7 +158,7 @@ if __name__ == "__main__":
     visualizer.show(drawn_img) """
 
 
-    from torchview import draw_graph
+    """ from torchview import draw_graph
     model_graph = draw_graph(model, input_size=(1,3,416,416), device='meta', save_graph=True, filename='arch', roll=True, hide_inner_tensors=False,
     hide_module_functions=False)#, expand_nested=True)
-    model_graph.visual_graph
+    model_graph.visual_graph """

@@ -6,6 +6,7 @@ Usage:
     $ yolo mode=train model=yolov8n.pt data=coco128.yaml imgsz=640 epochs=100 batch=16
 """
 import os
+import random
 import subprocess
 import time
 from copy import deepcopy
@@ -85,6 +86,7 @@ class BaseTrainer:
         self.check_resume()
         self.validator = None
         self.model = None
+        self.model_disc = None
         self.metrics = None
         init_seeds(self.args.seed + 1 + RANK, deterministic=self.args.deterministic)
 
@@ -118,14 +120,15 @@ class BaseTrainer:
         
         try: 
             self.data = check_det_dataset(self.args.data)
+            self.data_t = check_det_dataset(self.args.data_t)
             if 'yaml_file' in self.data:
                 self.args.data = self.data['yaml_file']  # for validating 'yolo train data=url.zip' usage
+            if 'yaml_file' in self.data_t:
+                self.args.data_t = self.data_t['yaml_file']  # for validating 'yolo train data=url.zip' usage
         except Exception as e:
             raise RuntimeError(emojis(f"Dataset '{clean_url(self.args.data)}' error ❌ {e}")) from e
+        
         self.trainset_s, self.testset_s = self.get_dataset(self.data)
-
-
-        self.data_t = check_det_dataset(self.args.data_t)
         self.trainset_t, self.testset_t = self.get_dataset(self.data_t)
 
         self.ema = None
@@ -208,6 +211,8 @@ class BaseTrainer:
         self.run_callbacks('on_pretrain_routine_start')
         ckpt = self.setup_model()
         self.model = self.model.to(self.device)
+        self.model_disc = self.model_disc.to(self.device)
+        
         
         self.set_model_attributes()
         # Check AMP
@@ -237,10 +242,12 @@ class BaseTrainer:
         self.accumulate = max(round(self.args.nbs / self.batch_size), 1)  # accumulate loss before optimizing
         weight_decay = self.args.weight_decay * self.batch_size * self.accumulate / self.args.nbs  # scale weight_decay
         self.optimizer = self.build_optimizer(model=self.model,
+                                              model_disc=self.model_disc,
                                               name=self.args.optimizer,
                                               lr=self.args.lr0,
                                               momentum=self.args.momentum,
                                               decay=weight_decay)
+        
         # Scheduler
         if self.args.cos_lr:
             self.lf = one_cycle(1, self.args.lrf, self.epochs)  # cosine 1->hyp['lrf']
@@ -254,6 +261,7 @@ class BaseTrainer:
         self.train_loader = self.get_dataloader(self.trainset_s, batch_size=batch_size, rank=RANK, mode='train')
         self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=batch_size, rank=RANK, mode='train')
 
+        
         if RANK in (-1, 0):
             self.test_loader = self.get_dataloader(self.testset_s, batch_size=batch_size * 2, rank=-1, mode='val')
             self.test_loader_t = self.get_dataloader(self.testset_t, batch_size=batch_size * 2, rank=-1, mode='val')
@@ -289,11 +297,13 @@ class BaseTrainer:
         if self.args.close_mosaic:
             base_idx = (self.epochs - self.args.close_mosaic) * nb
             self.plot_idx.extend([base_idx, base_idx + 1, base_idx + 2])
+                    
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         for epoch in range(self.start_epoch, self.epochs):
             self.epoch = epoch
             self.run_callbacks('on_train_epoch_start')
             self.model.train()
+            self.model_disc.train()
             if RANK != -1:
                 self.train_loader.sampler.set_epoch(epoch)
             pbar = enumerate(zip(self.train_loader, self.train_loader_t))
@@ -315,6 +325,7 @@ class BaseTrainer:
                 LOGGER.info(self.progress_string())
                 pbar = tqdm(enumerate(zip(self.train_loader, self.train_loader_t)), total=nb, bar_format=TQDM_BAR_FORMAT)
             self.tloss = None
+
             self.optimizer.zero_grad()
             for i, (batch, target) in pbar:
                 self.run_callbacks('on_train_batch_start')
@@ -330,13 +341,24 @@ class BaseTrainer:
                         if 'momentum' in x:
                             x['momentum'] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
 
+                
+                min_loader = min(len(self.train_loader), len(self.train_loader_t))
+                p = float(i + epoch * min_loader) / self.epochs / min_loader
+                self.alpha = 2. / (1. + np.exp(-10 * p)) - 1 
+                
                 # Forward
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
                     target = self.preprocess_batch(target)
-  
-                    preds = self.model(batch['img'], target['img'][0])
-                    self.loss, self.loss_items = self.criterion(preds, batch)
+
+                    preds, feat_source, feat_target = self.model(batch['img'], target['img'])
+                    
+                    disc_source = torch.cat([feat_source, feat_target])
+                    disc_labels = torch.cat([torch.ones(feat_source.shape[0]), torch.zeros(feat_target.shape[0])]).reshape(-1, 1).to("cuda")
+         
+                    preds_disc = self.model_disc(disc_source)
+                    
+                    self.loss, self.loss_items = self.criterion(preds, batch, preds_disc, disc_labels)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \
@@ -344,7 +366,7 @@ class BaseTrainer:
 
                 # Backward
                 self.scaler.scale(self.loss).backward()
-
+                
                 # Optimize - https://pytorch.org/docs/master/notes/amp_examples.html
                 if ni - last_opt_step >= self.accumulate:
                     self.optimizer_step()
@@ -449,11 +471,11 @@ class BaseTrainer:
         model, weights = self.model, None
         ckpt = None
         if str(model).endswith('.pt'):
-            weights, ckpt = attempt_load_one_weight(model)
+            #weights, ckpt = attempt_load_one_weight(model)
             cfg = ckpt['model'].yaml
         else:
             cfg = model
-        self.model = self.get_model(cfg=cfg, weights=weights, verbose=RANK == -1)  # calls Model(cfg, weights)
+        self.model, self.model_disc = self.get_model(cfg=cfg, weights=weights, verbose=RANK == -1)  # calls Model(cfg, weights)
         return ckpt
 
     def optimizer_step(self):
@@ -463,6 +485,7 @@ class BaseTrainer:
         self.scaler.step(self.optimizer)
         self.scaler.update()
         self.optimizer.zero_grad()
+        
         if self.ema:
             self.ema.update(self.model)
 
@@ -606,7 +629,7 @@ class BaseTrainer:
                 self.train_loader.dataset.close_mosaic(hyp=self.args)
 
     @staticmethod
-    def build_optimizer(model, name='Adam', lr=0.001, momentum=0.9, decay=1e-5):
+    def build_optimizer(model, model_disc=None,  name='Adam', lr=0.001, momentum=0.9, decay=1e-5):
         """
         Builds an optimizer with the specified parameters and parameter groups.
 
@@ -619,8 +642,9 @@ class BaseTrainer:
 
         Returns:
             optimizer (torch.optim.Optimizer): the built optimizer
-        """
-        g = [], [], []  # optimizer parameter groups
+        
+        """ 
+        g = [], [], [] # optimizer parameter groups
         bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
         for v in model.modules():
             if hasattr(v, 'bias') and isinstance(v.bias, nn.Parameter):  # bias (no decay)
@@ -629,6 +653,16 @@ class BaseTrainer:
                 g[1].append(v.weight)
             elif hasattr(v, 'weight') and isinstance(v.weight, nn.Parameter):  # weight (with decay)
                 g[0].append(v.weight)
+                
+        bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
+        for v in model_disc.modules():
+            if hasattr(v, 'bias') and isinstance(v.bias, nn.Parameter):  # bias (no decay)
+                g[2].append(v.bias)
+            if isinstance(v, bn):  # weight (no decay)
+                g[1].append(v.weight)
+            elif hasattr(v, 'weight') and isinstance(v.weight, nn.Parameter):  # weight (with decay)
+                g[0].append(v.weight)
+
 
         if name == 'Adam':
             optimizer = torch.optim.Adam(g[2], lr=lr, betas=(momentum, 0.999))  # adjust beta1 to momentum
@@ -645,6 +679,9 @@ class BaseTrainer:
         optimizer.add_param_group({'params': g[1], 'weight_decay': 0.0})  # add g1 (BatchNorm2d weights)
         LOGGER.info(f"{colorstr('optimizer:')} {type(optimizer).__name__}(lr={lr}) with parameter groups "
                     f'{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias')
+        
+        #optimizer = torch.optim.Adam(list(model.parameters()) + list(model_disc.parameters()), lr=lr, weight_decay=decay)
+            
         return optimizer
 
 
