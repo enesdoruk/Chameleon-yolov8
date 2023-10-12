@@ -1,10 +1,9 @@
-path: /home/adastec/syndet-yolo/datasets/shift_yolo
 train: 
-  - images/train
+  - /media/adastec/storage/syndet_datasets/shift_yolo/images/train
 val: 
-  - images/test
+  - /media/adastec/storage/syndet_datasets/kitti_yolo/images/test
 test: 
-  - /home/adastec/syndet-yolo/datasets/nuimages_yolo/images/test
+  - /media/adastec/storage/syndet_datasets/kitti_yolo/images/test
 
 names:
   0: Car

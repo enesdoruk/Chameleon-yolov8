@@ -56,13 +56,13 @@ class DetectionModel(nn.Module):
         if isinstance(m, (Detect)):
             s = 256 
             m.inplace = True
-            forward = lambda x, target:  self.forward(x, target)
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s), torch.zeros(1, 3, s, s))])  
+            forward = lambda x:  self.forward(x)
+            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
             self.stride = m.stride
-            m.bias_init() 
+            m.bias_init()  
 
 
-    def forward(self, x, target):
+    def forward(self, x, target=None):
         b1 = self.model[0](x)
   
         b2 = self.model[1](b1)
