@@ -9,16 +9,16 @@ import torchvision.transforms as transforms
 
 import os
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
+sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo-grl")
 
-from syndet.gradientreversal import DomainAdaptationModel
+from syndet.gradientreversal import ReverseLayerF
 from syndet.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
 
 
 class DetectionModel(nn.Module):
     def __init__(self):
         self.layers = []
-        self.output = []
+        self.layers_grl = []
         super(DetectionModel, self).__init__()
 
         self.layers.append(Conv(3, 64, k=3, s=2, p=1, g=1, d=1, act=True))
@@ -63,26 +63,19 @@ class DetectionModel(nn.Module):
             m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
             self.stride = m.stride
             m.bias_init() 
-
-
-    def forward(self, x, target=None):  
-        if target is not None:
-            b1_t = self.model[0](target)
-    
-            b2_t = self.model[1](b1_t)
-            b3_t = self.model[2](b2_t)
-
-            b4_t = self.model[3](b3_t)
-            b5_t = self.model[4](b4_t)
-
-            b6_t = self.model[5](b5_t)
-            b7_t = self.model[6](b6_t)
-
-            b8_t = self.model[7](b7_t)
-            b9_t = self.model[8](b8_t)
-            b10_t = self.model[9](b9_t)
         
-               
+        self.layers_grl.append(nn.Flatten())
+        self.layers_grl.append(nn.Linear(1024*10*10, 1024))
+        self.layers_grl.append(nn.BatchNorm1d(1024))
+        self.layers_grl.append(nn.ReLU())
+        self.layers_grl.append(nn.Linear(1024, 128))
+        self.layers_grl.append(nn.ReLU())
+        self.layers_grl.append(nn.Linear(128, 2))
+        self.layers_grl.append(nn.LogSoftmax(dim=1))
+
+        self.model_dom = nn.Sequential(*self.layers_grl)
+
+    def forward(self, x, target=None, alpha=1.):      
         b1 = self.model[0](x)
   
         b2 = self.model[1](b1)
@@ -116,7 +109,34 @@ class DetectionModel(nn.Module):
         h23 = self.model[22]([h22, h19, h16])      
 
         if target is not None:
-            return h23, b10, b10_t
+            b1_t = self.model[0](target)
+    
+            b2_t = self.model[1](b1_t)
+            b3_t = self.model[2](b2_t)
+
+            b4_t = self.model[3](b3_t)
+            b5_t = self.model[4](b4_t)
+
+            b6_t = self.model[5](b5_t)
+            b7_t = self.model[6](b6_t)
+
+            b8_t = self.model[7](b7_t)
+            b9_t = self.model[8](b8_t)
+            b10_t = self.model[9](b9_t)
+            
+            b10_view = b10.view(-1, 1024*10*10)
+            b10_t_view = b10_t.view(-1, 1024*10*10)
+            reverse_feat = ReverseLayerF.apply(b10_view, alpha)
+            reverse_feat_tar = ReverseLayerF.apply(b10_t_view, alpha)  
+            
+            reverse = torch.cat([reverse_feat, reverse_feat_tar])       
+            
+            domain_cls_0 = self.model_dom[0](reverse)
+            domain_cls_1 = self.model_dom[3](self.model_dom[2](self.model_dom[1](domain_cls_0)))
+            domain_cls_2 = self.model_dom[5](self.model_dom[4](domain_cls_1))
+            domain_output = self.model_dom[7](self.model_dom[6](domain_cls_2))
+            
+            return h23, domain_output      
         else:
             return h23
 

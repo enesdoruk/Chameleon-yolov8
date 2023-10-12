@@ -6,10 +6,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
+sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo-grl")
 
 from syndet.chameleonYOLO import DetectionModel
-from syndet.gradientreversal import DomainAdaptationModel
 from yolo.val import *
 from yolo.data.build import build_dataloader, build_yolo_dataset
 from yolo.data.dataloaders.v5loader import create_dataloader
@@ -97,9 +96,8 @@ class DetectionTrainer(BaseTrainer):
         model = DetectionModel()
         if weights:
             model.load(weights)
-        model_disc = DomainAdaptationModel(num_classes=1, input_dim=1024*20*20, alpha=1.)
         
-        return model, model_disc
+        return model
 
     def get_validator(self):
         """Returns a DetectionValidator for YOLO model validation."""
@@ -113,7 +111,7 @@ class DetectionTrainer(BaseTrainer):
         if preds_disc is not None and disc_labels is not None:
             return self.compute_loss(preds, batch, preds_disc, disc_labels)
         else:
-            return self.compute_loss(preds, batch)
+            return self.compute_loss(preds, batch, preds_disc, disc_labels)
 
     def label_loss_items(self, loss_items=None, prefix='train'):
         """
@@ -174,7 +172,7 @@ class Loss:
         self.assigner = TaskAlignedAssigner(topk=10, num_classes=self.nc, alpha=0.5, beta=6.0)
         self.bbox_loss = BboxLoss(m.reg_max - 1, use_dfl=self.use_dfl).to(device)
         self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
-        self.disc_criterion = nn.BCEWithLogitsLoss().to(device)
+        self.disc = nn.NLLLoss().to(device)
 
     def preprocess(self, targets, batch_size, scale_tensor):
         """Preprocesses the target counts and matches with the input batch size to output a tensor."""
@@ -243,14 +241,16 @@ class Loss:
             target_bboxes /= stride_tensor
             loss[0], loss[2] = self.bbox_loss(pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores,
                                               target_scores_sum, fg_mask)
-
+        
+  
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
         
         if preds_disc is not None and disc_labels is not None:
-            disc_loss = self.disc_criterion(preds_disc, disc_labels)
+            disc_loss = self.disc(preds_disc, disc_labels)
             loss[3] = disc_loss
+            loss[3] *= self.hyp.disc
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
 

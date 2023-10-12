@@ -18,7 +18,7 @@ from nn.autobackend import AutoBackend
 
 import os
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
+sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo-grl")
 
 from yolo.data.augment import LetterBox
 from yolo.utils import LOGGER, colorstr

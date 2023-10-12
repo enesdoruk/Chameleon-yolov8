@@ -86,7 +86,6 @@ class BaseTrainer:
         self.check_resume()
         self.validator = None
         self.model = None
-        self.model_disc = None
         self.metrics = None
         init_seeds(self.args.seed + 1 + RANK, deterministic=self.args.deterministic)
 
@@ -210,9 +209,7 @@ class BaseTrainer:
         # Model
         self.run_callbacks('on_pretrain_routine_start')
         ckpt = self.setup_model()
-        self.model = self.model.to(self.device)
-        self.model_disc = self.model_disc.to(self.device)
-        
+        self.model = self.model.to(self.device)        
         
         self.set_model_attributes()
         # Check AMP
@@ -242,7 +239,6 @@ class BaseTrainer:
         self.accumulate = max(round(self.args.nbs / self.batch_size), 1)  # accumulate loss before optimizing
         weight_decay = self.args.weight_decay * self.batch_size * self.accumulate / self.args.nbs  # scale weight_decay
         self.optimizer = self.build_optimizer(model=self.model,
-                                              model_disc=self.model_disc,
                                               name=self.args.optimizer,
                                               lr=self.args.lr0,
                                               momentum=self.args.momentum,
@@ -303,7 +299,6 @@ class BaseTrainer:
             self.epoch = epoch
             self.run_callbacks('on_train_epoch_start')
             self.model.train()
-            self.model_disc.train()
             if RANK != -1:
                 self.train_loader.sampler.set_epoch(epoch)
             pbar = enumerate(zip(self.train_loader, self.train_loader_t))
@@ -351,14 +346,11 @@ class BaseTrainer:
                     batch = self.preprocess_batch(batch)
                     target = self.preprocess_batch(target)
 
-                    preds, feat_source, feat_target = self.model(batch['img'], target['img'])
+                    preds, preds_disc = self.model(batch['img'], target['img'], self.alpha)
                     
-                    disc_source = torch.cat([feat_source, feat_target])
-                    disc_labels = torch.cat([torch.ones(feat_source.shape[0]), torch.zeros(feat_target.shape[0])]).reshape(-1, 1).to("cuda")
-         
-                    preds_disc = self.model_disc(disc_source)
-                    
-                    self.loss, self.loss_items = self.criterion(preds, batch, preds_disc, disc_labels)
+                    disc_labels = torch.cat([torch.ones(preds_disc.shape[0] // 2 ).long(), torch.zeros(preds_disc.shape[0] // 2).long()]).reshape(-1, 1).to("cuda")
+                             
+                    self.loss, self.loss_items = self.criterion(preds, batch, preds_disc, disc_labels.view(-1))
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \
@@ -475,7 +467,7 @@ class BaseTrainer:
             cfg = ckpt['model'].yaml
         else:
             cfg = model
-        self.model, self.model_disc = self.get_model(cfg=cfg, weights=weights, verbose=RANK == -1)  # calls Model(cfg, weights)
+        self.model = self.get_model(cfg=cfg, weights=weights, verbose=RANK == -1)  # calls Model(cfg, weights)
         return ckpt
 
     def optimizer_step(self):
@@ -629,7 +621,7 @@ class BaseTrainer:
                 self.train_loader.dataset.close_mosaic(hyp=self.args)
 
     @staticmethod
-    def build_optimizer(model, model_disc=None,  name='Adam', lr=0.001, momentum=0.9, decay=1e-5):
+    def build_optimizer(model, name='Adam', lr=0.001, momentum=0.9, decay=1e-5):
         """
         Builds an optimizer with the specified parameters and parameter groups.
 
@@ -653,17 +645,7 @@ class BaseTrainer:
                 g[1].append(v.weight)
             elif hasattr(v, 'weight') and isinstance(v.weight, nn.Parameter):  # weight (with decay)
                 g[0].append(v.weight)
-                
-        bn = tuple(v for k, v in nn.__dict__.items() if 'Norm' in k)  # normalization layers, i.e. BatchNorm2d()
-        for v in model_disc.modules():
-            if hasattr(v, 'bias') and isinstance(v.bias, nn.Parameter):  # bias (no decay)
-                g[2].append(v.bias)
-            if isinstance(v, bn):  # weight (no decay)
-                g[1].append(v.weight)
-            elif hasattr(v, 'weight') and isinstance(v.weight, nn.Parameter):  # weight (with decay)
-                g[0].append(v.weight)
-
-
+    
         if name == 'Adam':
             optimizer = torch.optim.Adam(g[2], lr=lr, betas=(momentum, 0.999))  # adjust beta1 to momentum
         elif name == 'AdamW':
@@ -679,9 +661,7 @@ class BaseTrainer:
         optimizer.add_param_group({'params': g[1], 'weight_decay': 0.0})  # add g1 (BatchNorm2d weights)
         LOGGER.info(f"{colorstr('optimizer:')} {type(optimizer).__name__}(lr={lr}) with parameter groups "
                     f'{len(g[1])} weight(decay=0.0), {len(g[0])} weight(decay={decay}), {len(g[2])} bias')
-        
-        #optimizer = torch.optim.Adam(list(model.parameters()) + list(model_disc.parameters()), lr=lr, weight_decay=decay)
-            
+                    
         return optimizer
 
 
