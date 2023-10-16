@@ -12,12 +12,11 @@ sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
 from SawYOLO.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
 
 
-class DetectionModel(nn.Module):
-    def __init__(self):
+class Backbone(nn.Module):
+    def __init__(self) -> None:
         self.layers = []
-        self.output = []
-        super(DetectionModel, self).__init__()
-
+        super(Backbone, self).__init__()
+        
         self.layers.append(Conv(3, 64, k=3, s=2, p=1, g=1, d=1, act=True))
         self.layers.append(Conv(64, 128, k=3, s=2, p=1, g=1, d=1, act=True))
         self.layers.append(C2f(128, 128, n=1, shortcut=True, g=1, e=0.5))
@@ -31,7 +30,33 @@ class DetectionModel(nn.Module):
         self.layers.append(Conv(512, 1024, k=3, s=2, p=1, g=1, d=1, act=True))
         self.layers.append(C2f(1024, 1024, n=1, shortcut=True, g=1, e=0.5))
         self.layers.append(SPPF(1024, 1024, k=5))
+        
+        self.model = nn.Sequential(*self.layers)
+        
+    def forward(self, x):
+        b1 = self.model[0](x)
 
+        b2 = self.model[1](b1)
+        b3 = self.model[2](b2)
+
+        b4 = self.model[3](b3)
+        b5 = self.model[4](b4)
+
+        b6 = self.model[5](b5)
+        b7 = self.model[6](b6)
+
+        b8 = self.model[7](b7)
+        b9 = self.model[8](b8)
+        b10 = self.model[9](b9)
+        
+        return b5, b7, b10
+
+
+class Head(nn.Module):
+    def __init__(self, ) -> None:
+        self.layers = []
+        super(Head, self).__init__()
+        
         self.layers.append(Upsample(1024, 2))
         self.layers.append(Concat())
         self.layers.append(C2f(1536, 512, n=3, shortcut=True, g=1, e=0.5))
@@ -51,33 +76,8 @@ class DetectionModel(nn.Module):
         self.layers.append(Detect(nc=4, ch=(1024, 512, 256)))
 
         self.model = nn.Sequential(*self.layers)
-
-        m = self.model[-1]  
-        if isinstance(m, (Detect)):
-            s = 256 
-            m.inplace = True
-            forward = lambda x:  self.forward(x)
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
-            self.stride = m.stride
-            m.bias_init()  
-
-
-    def forward(self, x, target=None):
-        b1 = self.model[0](x)
-  
-        b2 = self.model[1](b1)
-        b3 = self.model[2](b2)
-
-        b4 = self.model[3](b3)
-        b5 = self.model[4](b4)
-
-        b6 = self.model[5](b5)
-        b7 = self.model[6](b6)
-
-        b8 = self.model[7](b7)
-        b9 = self.model[8](b8)
-        b10 = self.model[9](b9)
-
+        
+    def forward(self, b5, b7, b10):
         h11 = self.model[10](b10)
         h12 = self.model[11]((h11,b7))
         h13 = self.model[12](h12)
@@ -93,30 +93,52 @@ class DetectionModel(nn.Module):
         h20 = self.model[19](h19)
         h21 = self.model[20]((h20,b10))
         h22 = self.model[21](h21)
-        h23 = self.model[22]([h22, h19, h16])      
-
+        h23 = self.model[22]([h22, h19, h16])
+        
         return h23
+        
+        
+
+
+class DetectionModel(nn.Module):
+    def __init__(self):
+        self.layers = []
+        self.output = []
+        super(DetectionModel, self).__init__()
+        
+        self.backbone = Backbone()
+        self.head = Head()
+
+        # m = self.model[-1]  
+        # if isinstance(m, (Detect)):
+        #     s = 256 
+        #     m.inplace = True
+        #     forward = lambda x:  self.forward(x)
+        #     m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
+        #     self.stride = m.stride
+        #     m.bias_init()  
+
+
+    def forward(self, x, target=None):
+        backb5, backb7, backb10 = self.backbone(x)
+        head = self.head(backb5, backb7, backb10)
+
+        return head
+
+
+
+
 
 
 
 if __name__ == "__main__":
-    img_np = Image.open('test.png')
-
-    transform = transforms.Compose([
-        transforms.Resize((640, 640)),
-        transforms.ToTensor()])
-    
-    img = transform(img_np)
-    img = img.unsqueeze(0).to("cuda")
+    import numpy as np
+    input_img = np.random.rand(640,640,3).transpose(2,1,0)
+    input_img_tensor = torch.from_numpy(input_img).unsqueeze(0).float().to('cuda')
 
     model = DetectionModel().to("cuda")
-    model.eval()
-
-    #summary(model, (3,640,640))
-    #print(model))
-
-    with torch.no_grad():
-        out = model(img)
+    out = model(input_img_tensor)
+        
 
     """ import mmcv
     from mmengine.visualization import Visualizer
@@ -126,7 +148,7 @@ if __name__ == "__main__":
     visualizer.show(drawn_img) """
 
 
-    from torchview import draw_graph
-    model_graph = draw_graph(model, input_size=(1,3,416,416), device='meta', save_graph=True, filename='arch', roll=True, hide_inner_tensors=False,
-    hide_module_functions=False)#, expand_nested=True)
-    model_graph.visual_graph
+    # from torchview import draw_graph
+    # model_graph = draw_graph(model, input_size=(1,3,416,416), device='meta', save_graph=True, filename='arch', roll=True, hide_inner_tensors=False,
+    # hide_module_functions=False)#, expand_nested=True)
+    # model_graph.visual_graph

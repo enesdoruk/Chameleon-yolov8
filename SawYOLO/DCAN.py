@@ -120,7 +120,7 @@ class DCCANet(nn.Module):
             ]
         else:
             layer0_modules = [
-                ('conv1', nn.Conv2d(3, inplanes, kernel_size=7, stride=2,
+                ('conv1', nn.Conv2d(1, inplanes, kernel_size=20, stride=2,
                                     padding=3, bias=False)),
                 ('bn1', nn.BatchNorm2d(inplanes, track_running_stats=True)),
                 ('relu1', nn.ReLU(inplace=True)),
@@ -219,11 +219,68 @@ class DCCANet(nn.Module):
 
 if __name__ == "__main__":
     model = DCCANet(DCCAResNetBottleneck, [3, 4, 6, 3], groups=1, reduction=16,
-                    dropout_p=None, inplanes=64, input_3x3=False,
-                    downsample_kernel_size=1, downsample_padding=0)
+                    dropout_p=None, inplanes=1024, input_3x3=False,
+                    downsample_kernel_size=1, downsample_padding=0).to('cuda')
+    
+    import numpy as np
+    import matplotlib.pyplot as plt
     
     
-    from torchview import draw_graph
+    input_img_1 = np.random.rand(20,20,1024).transpose(2,1,0)
+    input_img_tensor_1 = torch.from_numpy(input_img_1).unsqueeze(1).float().to('cuda')
+    output_1 = model(input_img_tensor_1)
+    print("1: ", output_1.shape)
+    
+    # input_img_2 = np.random.rand(40,40,512).transpose(2,1,0)
+    # input_img_tensor_2 = torch.from_numpy(input_img_2).unsqueeze(0).float().to('cuda')
+    # output_2 = model(input_img_tensor_2)
+    # print("2: ", output_2.shape)
+    
+    # input_img_3 = np.random.rand(80,80,256).transpose(2,1,0)
+    # input_img_tensor_3 = torch.from_numpy(input_img_3).unsqueeze(0).float().to('cuda')
+    # output_3 = model(input_img_tensor_3)
+    # print("3: ", output_3.shape)
+    
+    
+    input_img_2 = np.random.rand(40,40,512).transpose(2,1,0)
+    input_img_tensor_2 = torch.from_numpy(input_img_2).unsqueeze(0).float().to('cuda')
+    model_dca = DCCAModule(channels=512, reduction=16).to('cuda')
+    output = model_dca(input_img_tensor_2)
+    print(output.shape)
+    
+    
+    model_bott = DCCAResNetBottleneck(groups=1, reduction=16, inplanes=512, planes=128).to('cuda')
+    print(list(model_bott.children()))
+    output2 = model_bott(input_img_tensor_2)
+    output2_sq = output2.squeeze(0).detach().cpu()
+    
+    activation = {}
+    def get_activation(name):
+        def hook(module, input, output):
+            activation[name] = output
+        return hook
+    
+    print(model_bott.conv1.weight[0])
+    print(model_bott.get_layer("conv1"))
+    # target_layer = model_bott.conv3
+    # target_layer.register_forward_hook(get_activation("target_layer"))
+    # output2 = model_bott(input_img_tensor_2)
+    # activation_map = activation["target_layer"].squeeze(0)
+    # channel = 0
+    # plt.imshow(activation_map[channel].cpu().detach().numpy(), cmap='viridis')
+    # plt.axis('off')
+    # plt.show()
+    
+    # gray_scale = torch.sum(output2_sq,0)
+    # gray_scale = gray_scale / output2_sq.shape[0]
+    # plt.imshow(gray_scale)
+    # plt.show()
+
+    # print(output2.shape)
+    # print(gray_scale.shape)
+    
+    
+    """ from torchview import draw_graph
     model_graph = draw_graph(model, input_size=(1,3,416,416), device='meta', save_graph=True, filename='arch', roll=True, hide_inner_tensors=False,
     hide_module_functions=False)#, expand_nested=True)
-    model_graph.visual_graph
+    model_graph.visual_graph """
