@@ -17,7 +17,7 @@ from tqdm import tqdm
 
 import os
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
+sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo-dcan")
 
 from yolo.utils import LOCAL_RANK, LOGGER, NUM_THREADS, TQDM_BAR_FORMAT
 from yolo.data.utils import HELP_URL, IMG_FORMATS

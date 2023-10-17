@@ -1,103 +1,15 @@
-from PIL import Image
+import os
+import sys
+sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo-dcan")
 
 import torch
 import torch.nn as nn
-from torchsummary import summary
-import torchvision.transforms as transforms
 
-import os
-import sys
-sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo")
+from SawYOLO.head import Head
+from SawYOLO.modules import Detect
+from SawYOLO.backbone import Backbone
+from SawYOLO.DCAN import DCCABottleneck, FeatureCorrection
 
-from SawYOLO.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
-
-
-class Backbone(nn.Module):
-    def __init__(self) -> None:
-        self.layers = []
-        super(Backbone, self).__init__()
-        
-        self.layers.append(Conv(3, 64, k=3, s=2, p=1, g=1, d=1, act=True))
-        self.layers.append(Conv(64, 128, k=3, s=2, p=1, g=1, d=1, act=True))
-        self.layers.append(C2f(128, 128, n=1, shortcut=True, g=1, e=0.5))
-
-        self.layers.append(Conv(128, 256, k=3, s=2, p=1, g=1, d=1, act=True))
-        self.layers.append(C2f(256, 256, n=1, shortcut=True, g=1, e=0.5))
-
-        self.layers.append(Conv(256, 512, k=3, s=2, p=1, g=1, d=1, act=True))
-        self.layers.append(C2f(512, 512, n=1, shortcut=True, g=1, e=0.5))
-
-        self.layers.append(Conv(512, 1024, k=3, s=2, p=1, g=1, d=1, act=True))
-        self.layers.append(C2f(1024, 1024, n=1, shortcut=True, g=1, e=0.5))
-        self.layers.append(SPPF(1024, 1024, k=5))
-        
-        self.model = nn.Sequential(*self.layers)
-        
-    def forward(self, x):
-        b1 = self.model[0](x)
-
-        b2 = self.model[1](b1)
-        b3 = self.model[2](b2)
-
-        b4 = self.model[3](b3)
-        b5 = self.model[4](b4)
-
-        b6 = self.model[5](b5)
-        b7 = self.model[6](b6)
-
-        b8 = self.model[7](b7)
-        b9 = self.model[8](b8)
-        b10 = self.model[9](b9)
-        
-        return b5, b7, b10
-
-
-class Head(nn.Module):
-    def __init__(self, ) -> None:
-        self.layers = []
-        super(Head, self).__init__()
-        
-        self.layers.append(Upsample(1024, 2))
-        self.layers.append(Concat())
-        self.layers.append(C2f(1536, 512, n=3, shortcut=True, g=1, e=0.5))
-
-        self.layers.append(Upsample(512, 2))
-        self.layers.append(Concat())
-        self.layers.append(C2f(768, 256, n=3, shortcut=True, g=1, e=0.5))
-
-        self.layers.append(Conv(256, 256, k=3, s=2, p=1, g=1, d=1, act=True))
-        self.layers.append(Concat())
-        self.layers.append(C2f(768, 512, n=3, shortcut=True, g=1, e=0.5))
-
-        self.layers.append(Conv(512, 512, k=3, s=2, p=1, g=1, d=1, act=True))
-        self.layers.append(Concat())
-        self.layers.append(C2f(1536, 1024, n=3, shortcut=True, g=1, e=0.5))
-
-        self.layers.append(Detect(nc=4, ch=(1024, 512, 256)))
-
-        self.model = nn.Sequential(*self.layers)
-        
-    def forward(self, b5, b7, b10):
-        h11 = self.model[10](b10)
-        h12 = self.model[11]((h11,b7))
-        h13 = self.model[12](h12)
-
-        h14 = self.model[13](h13)
-        h15 = self.model[14]((h14,b5))
-        h16 = self.model[15](h15)
-
-        h17 = self.model[16](h16)
-        h18 = self.model[17]((h17,h13))
-        h19 = self.model[18](h18)
-
-        h20 = self.model[19](h19)
-        h21 = self.model[20]((h20,b10))
-        h22 = self.model[21](h21)
-        h23 = self.model[22]([h22, h19, h16])
-        
-        return h23
-        
-        
 
 
 class DetectionModel(nn.Module):
@@ -108,27 +20,42 @@ class DetectionModel(nn.Module):
         
         self.backbone = Backbone()
         self.head = Head()
-
-        # m = self.model[-1]  
-        # if isinstance(m, (Detect)):
-        #     s = 256 
-        #     m.inplace = True
-        #     forward = lambda x:  self.forward(x)
-        #     m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
-        #     self.stride = m.stride
-        #     m.bias_init()  
+        self.dcanet_backb5 = DCCABottleneck(groups=1, reduction=16, inplanes=256, planes=64)
+        self.dcanet_backb7 = DCCABottleneck(groups=1, reduction=16, inplanes=512, planes=128)
+        self.dcanet_backb10 = DCCABottleneck(groups=1, reduction=16, inplanes=1024, planes=256)
+        
+        self.featcorr_back5 = FeatureCorrection(channels=256, reduction=4)
+        self.featcorr_back7 = FeatureCorrection(channels=512, reduction=4)
+        self.featcorr_back10 = FeatureCorrection(channels=1024, reduction=4)
+        
+        m = self.head.model[-1]  
+        if isinstance(m, (Detect)):
+            s = 256 
+            m.inplace = True
+            forward = lambda x:  self.forward(x)
+            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
+            self.stride = m.stride
+            m.bias_init()  
 
 
     def forward(self, x, target=None):
+        if target is not None:
+            x = torch.cat((x, target), 0)
+            
         backb5, backb7, backb10 = self.backbone(x)
-        head = self.head(backb5, backb7, backb10)
+        
+        dcanet_b5 = self.dcanet_backb5(backb5)
+        feat_corr_b5 = self.featcorr_back5(dcanet_b5)
+        
+        dcanet_b7 = self.dcanet_backb7(backb7)
+        feat_corr_b7 = self.featcorr_back7(dcanet_b7)
+        
+        dcanet_b10 = self.dcanet_backb10(backb10)
+        feat_corr_b10 = self.featcorr_back10(dcanet_b10)
+        
+        head = self.head(feat_corr_b5, feat_corr_b7, feat_corr_b10)
 
         return head
-
-
-
-
-
 
 
 if __name__ == "__main__":

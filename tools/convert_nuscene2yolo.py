@@ -5,9 +5,9 @@ from tqdm import tqdm
 from nuimages import NuImages
 
 
-nuim = NuImages(dataroot=os.path.expanduser('~') + '/syndet-yolo/datasets/nuimages', version='v1.0-train', verbose=True, lazy=True)
+nuim = NuImages(dataroot=os.path.expanduser('~') + '/syndet-yolo-dcan/datasets/nuimages', version='v1.0-train', verbose=True, lazy=True)
 
-image_path = os.path.expanduser('~') + '/syndet-yolo/datasets/nuimages'
+image_path = os.path.expanduser('~') + '/syndet-yolo-dcan/datasets/nuimages'
 
 
 new_train_img_path = 'nuimages_yolo/images/train'

@@ -20,8 +20,7 @@ import torchvision
 
 
 from yolo.utils import DEFAULT_CFG_DICT, DEFAULT_CFG_KEYS, LOGGER, RANK
-from ultralytics.yolo.utils import  __version__
-
+__version__ = '2.0.0'
 from yolo.utils.checks import check_version
 
 TORCHVISION_0_10 = check_version(torchvision.__version__, '0.10.0')
