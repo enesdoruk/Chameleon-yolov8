@@ -1,9 +1,10 @@
 train: 
   - /media/adastec/storage/syndet_datasets/kitti_yolo/images/train
 val: 
-  - /media/adastec/storage/syndet_datasets/kitti_yolo/images/train
+  - /media/adastec/storage/syndet_datasets/kitti_yolo/images/test
 test: 
-  - /media/adastec/storage/syndet_datasets/kitti_yolo/images/train
+  - /media/adastec/storage/syndet_datasets/kitti_yolo/images/test
+
 names:
   0: Car
   1: Truck

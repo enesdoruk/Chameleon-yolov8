@@ -62,7 +62,7 @@ from nn.autobackend import check_class_names
 from nn.modules import C2f, Detect
 from nn.tasks import DetectionModel
 from yolo.cfg import get_cfg
-from ultralytics.yolo.utils import __version__
+__version__ = "2.0.0"
 from yolo.utils import (DEFAULT_CFG, LINUX, LOGGER, MACOS, callbacks, colorstr,
                                     get_default_args, yaml_save)
 from yolo.utils.checks import check_imgsz, check_requirements, check_version

@@ -25,7 +25,7 @@ from tqdm import tqdm
 from nn.tasks import attempt_load_one_weight, attempt_load_weights
 from yolo.cfg import get_cfg
 from yolo.data.utils import check_det_dataset
-from ultralytics.yolo.utils import __version__
+__version__ = "2.0.0"
 from yolo.utils import (DEFAULT_CFG, LOGGER, ONLINE, RANK, ROOT, SETTINGS, TQDM_BAR_FORMAT,
                                     callbacks, clean_url, colorstr, emojis, yaml_save)
 from yolo.utils.autobatch import check_train_batch_size
