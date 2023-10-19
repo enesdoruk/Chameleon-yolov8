@@ -5,7 +5,7 @@ from pathlib import Path
 from time import sleep
 
 import requests
-from ultralytics.yolo.utils import __version__
+__version__ = "2.0.0"
 
 from hub.utils import HUB_API_ROOT, PREFIX, smart_request
 from yolo.utils import LOGGER, checks, emojis, is_colab, threaded

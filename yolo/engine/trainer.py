@@ -24,7 +24,7 @@ from tqdm import tqdm
 from nn.tasks import attempt_load_one_weight, attempt_load_weights
 from yolo.cfg import get_cfg
 from yolo.data.utils import check_det_dataset
-from ultralytics.yolo.utils import __version__
+__version__ = "2.0.0"
 from yolo.utils import (DEFAULT_CFG, LOGGER, ONLINE, RANK, ROOT, SETTINGS, TQDM_BAR_FORMAT,
                                     callbacks, clean_url, colorstr, emojis, yaml_save)
 from yolo.utils.autobatch import check_train_batch_size
@@ -334,8 +334,16 @@ class BaseTrainer:
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
                     target = self.preprocess_batch(target)
-  
-                    preds = self.model(batch['img'], target['img'][0])
+                    
+                    act_path = os.path.join(os.getcwd(), 'act_output')
+                    os.makedirs(act_path, exist_ok=True)
+                    act_img_path = os.path.join(act_path, f"epoch_{epoch}_iterate_{i}.jpg")
+        
+                    if epoch % 5 == 0 and i % 100 == 0 and i > 0 and epoch > 0:
+                        preds = self.model(batch['img'], target['img'], verbose=True, save_path=act_img_path)
+                    else:
+                        preds = self.model(batch['img'], target['img'], verbose=False, save_path=None)
+                        
                     self.loss, self.loss_items = self.criterion(preds, batch)
                     if RANK != -1:
                         self.loss *= world_size

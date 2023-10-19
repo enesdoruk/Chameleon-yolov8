@@ -8,7 +8,6 @@ import torch.nn as nn
 
 sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo-dcan")
 
-from nn.tasks import DetectionModel
 from yolo.val import *
 from yolo.data.build import build_dataloader, build_yolo_dataset
 from yolo.data.dataloaders.v5loader import create_dataloader
@@ -154,8 +153,7 @@ class Loss:
 
         device = next(model.parameters()).device  # get model device
         h = model.args  # hyperparameters
-
-        m = model.model[-1]  # Detect() module
+        m = model.model[-1].detect  # Detect() module
         self.bce = nn.BCEWithLogitsLoss(reduction='none')
         self.hyp = h
         self.stride = m.stride  # model strides
