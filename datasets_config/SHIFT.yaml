@@ -1,9 +1,9 @@
 train: 
-  - /media/adastec/storage/syndet_datasets/shift_yolo/images/train
+  - /AI/syndet_datasets/shift_yolo/images/train
 val: 
-  - /media/adastec/storage/syndet_datasets/kitti_yolo/images/test
+  - /AI/syndet_datasets/kitti_yolo/images/test
 test: 
-  - /media/adastec/storage/syndet_datasets/kitti_yolo/images/test
+  - /AI/syndet_datasets/kitti_yolo/images/test
 
 names:
   0: Car

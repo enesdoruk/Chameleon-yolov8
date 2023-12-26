@@ -22,6 +22,7 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import lr_scheduler
 from tqdm import tqdm
 
+from torch.autograd import Variable
 from nn.tasks import attempt_load_one_weight, attempt_load_weights
 from yolo.cfg import get_cfg
 from yolo.data.utils import check_det_dataset
@@ -253,14 +254,14 @@ class BaseTrainer:
         self.stopper, self.stop = EarlyStopping(patience=self.args.patience), False
 
         # Dataloaders
-        batch_size = self.batch_size // world_size if world_size > 1 else self.batch_size
-        self.train_loader = self.get_dataloader(self.trainset_s, batch_size=batch_size, rank=RANK, mode='train')
-        self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=batch_size, rank=RANK, mode='train')
+        self.batch_size = self.batch_size // world_size if world_size > 1 else self.batch_size
+        self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
+        self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
 
         
         if RANK in (-1, 0):
-            self.test_loader = self.get_dataloader(self.testset_s, batch_size=batch_size * 2, rank=-1, mode='val')
-            self.test_loader_t = self.get_dataloader(self.testset_t, batch_size=batch_size * 2, rank=-1, mode='val')
+            self.test_loader = self.get_dataloader(self.testset_s, batch_size=self.batch_size * 2, rank=-1, mode='val')
+            self.test_loader_t = self.get_dataloader(self.testset_t, batch_size=self.batch_size * 2, rank=-1, mode='val')
             self.validator = self.get_validator()
             metric_keys = self.validator.metrics.keys + self.label_loss_items(prefix='val')
             self.metrics = dict(zip(metric_keys, [0] * len(metric_keys)))  # TODO: init metrics for plot_results()?
@@ -296,6 +297,9 @@ class BaseTrainer:
                     
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         for epoch in range(self.start_epoch, self.epochs):
+            if epoch % 30 == 0:
+                self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
+                self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
             self.epoch = epoch
             self.run_callbacks('on_train_epoch_start')
             self.model.train()
@@ -346,11 +350,13 @@ class BaseTrainer:
                     batch = self.preprocess_batch(batch)
                     target = self.preprocess_batch(target)
 
-                    preds, preds_disc = self.model(batch['img'], target['img'], self.alpha)
-                    
-                    disc_labels = torch.cat([torch.ones(preds_disc.shape[0] // 2 ).long(), torch.zeros(preds_disc.shape[0] // 2).long()]).reshape(-1, 1).to("cuda")
-                             
-                    self.loss, self.loss_items = self.criterion(preds, batch, preds_disc, disc_labels.view(-1))
+                    preds, preds_disc_s, preds_disc_t = self.model(x=batch['img'], target=target['img'], alpha=self.alpha)
+
+                    source_labels = Variable(torch.zeros((batch['img'].size()[0])).type(torch.LongTensor).cuda())
+                    target_labels = Variable(torch.ones((target['img'].size()[0])).type(torch.LongTensor).cuda())
+
+                    disc = [preds_disc_s, source_labels, preds_disc_t, target_labels]
+                    self.loss, self.loss_items = self.criterion(preds, batch, disc)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \

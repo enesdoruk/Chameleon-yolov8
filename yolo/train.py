@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo-grl")
 
 from syndet.chameleonYOLO import DetectionModel
 from yolo.val import *
@@ -104,14 +104,14 @@ class DetectionTrainer(BaseTrainer):
         self.loss_names = 'box_loss', 'cls_loss', 'dfl_loss', 'adv_loss'
         return DetectionValidator(self.test_loader, save_dir=self.save_dir, args=copy(self.args))
 
-    def criterion(self, preds, batch, preds_disc=None, disc_labels=None):
+    def criterion(self, preds, batch, preds_disc=None):
         """Compute loss for YOLO prediction and ground-truth."""
         if not hasattr(self, 'compute_loss'):
             self.compute_loss = Loss(de_parallel(self.model))
-        if preds_disc is not None and disc_labels is not None:
-            return self.compute_loss(preds, batch, preds_disc, disc_labels)
+        if preds_disc is not None:
+            return self.compute_loss(preds, batch, preds_disc)
         else:
-            return self.compute_loss(preds, batch, preds_disc, disc_labels)
+            return self.compute_loss(preds, batch, preds_disc)
 
     def label_loss_items(self, loss_items=None, prefix='train'):
         """
@@ -200,7 +200,7 @@ class Loss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, preds, batch, preds_disc=None, disc_labels=None):
+    def __call__(self, preds, batch, preds_disc=None):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
         
         loss = torch.zeros(4, device=self.device)  # box, cls, dfl
@@ -247,9 +247,11 @@ class Loss:
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
         
-        if preds_disc is not None and disc_labels is not None:
-            disc_loss = self.disc(preds_disc, disc_labels)
-            loss[3] = disc_loss
+        if preds_disc is not None:
+            disc_loss_s = self.disc(preds_disc[0], preds_disc[1])
+            disc_loss_t = self.disc(preds_disc[2], preds_disc[3])
+            
+            loss[3] = disc_loss_s + disc_loss_t
             loss[3] *= self.hyp.disc
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)

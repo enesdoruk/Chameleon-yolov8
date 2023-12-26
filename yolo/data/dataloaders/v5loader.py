@@ -152,7 +152,8 @@ def create_dataloader(path,
                   pin_memory=PIN_MEMORY,
                   collate_fn=LoadImagesAndLabels.collate_fn,
                   worker_init_fn=seed_worker,
-                  generator=generator), dataset
+                  generator=generator,
+                  drop_last=True), dataset
 
 
 class InfiniteDataLoader(dataloader.DataLoader):

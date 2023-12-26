@@ -9,7 +9,7 @@ import torchvision.transforms as transforms
 
 import os
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo-grl")
 
 from syndet.gradientreversal import ReverseLayerF, DomainDiscriminator
 from syndet.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
@@ -47,18 +47,12 @@ class DetectionModel(nn.Module):
                              backb10)  
 
         if target is not None:
-            backb5_t, backb7_t, backb10_t = self.model[0](target)
-
-            b10_view = backb10.view(-1, 1024*10*10)
-            b10_t_view = backb10_t.view(-1, 1024*10*10)
-            reverse_feat = ReverseLayerF.apply(b10_view, alpha)
-            reverse_feat_tar = ReverseLayerF.apply(b10_t_view, alpha)  
+            backb5_t, backb7_t, backb10_t = self.model[0](target) 
+    
+            domain_output_s = self.model_dom[0](backb10, alpha)
+            domain_output_t = self.model_dom[0](backb10_t, alpha)
             
-            reverse = torch.cat([reverse_feat, reverse_feat_tar])       
-            
-            domain_output = self.model_dom(reverse)
-            
-            return head, domain_output      
+            return head, domain_output_s, domain_output_t
         else:
             return head
 

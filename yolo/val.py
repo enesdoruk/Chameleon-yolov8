@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo-grl")
 
 from yolo.data.build import build_dataloader, build_yolo_dataset
 from yolo.data.dataloaders.v5loader import create_dataloader
