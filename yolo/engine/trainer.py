@@ -297,7 +297,7 @@ class BaseTrainer:
                     
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         for epoch in range(self.start_epoch, self.epochs):
-            if epoch % 30 == 0:
+            if epoch % 5 == 0:
                 self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
                 self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
             self.epoch = epoch
@@ -344,19 +344,22 @@ class BaseTrainer:
                 min_loader = min(len(self.train_loader), len(self.train_loader_t))
                 p = float(i + epoch * min_loader) / self.epochs / min_loader
                 self.alpha = 2. / (1. + np.exp(-10 * p)) - 1 
+                lambda_coral = 0.5
                 
                 # Forward
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
                     target = self.preprocess_batch(target)
 
-                    preds, preds_disc_s, preds_disc_t = self.model(x=batch['img'], target=target['img'], alpha=self.alpha)
+                    preds, preds_disc_s, preds_disc_t, coral_loss = self.model(x=batch['img'], target=target['img'], alpha=self.alpha)
 
                     source_labels = Variable(torch.zeros((batch['img'].size()[0])).type(torch.LongTensor).cuda())
                     target_labels = Variable(torch.ones((target['img'].size()[0])).type(torch.LongTensor).cuda())
+                    
+                    coral_loss = coral_loss * lambda_coral
 
                     disc = [preds_disc_s, source_labels, preds_disc_t, target_labels]
-                    self.loss, self.loss_items = self.criterion(preds, batch, disc)
+                    self.loss, self.loss_items = self.criterion(preds, batch, disc, coral_loss)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \

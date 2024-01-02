@@ -15,6 +15,7 @@ from syndet.gradientreversal import ReverseLayerF, DomainDiscriminator
 from syndet.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
 from syndet.backbone import Backbone
 from syndet.head import Head
+from syndet.coral import coral
 
 class DetectionModel(nn.Module):
     def __init__(self):
@@ -49,10 +50,12 @@ class DetectionModel(nn.Module):
         if target is not None:
             backb5_t, backb7_t, backb10_t = self.model[0](target) 
     
-            domain_output_s = self.model_dom[0](backb10, alpha)
-            domain_output_t = self.model_dom[0](backb10_t, alpha)
+            domain_output_s, coral_s = self.model_dom[0](backb10, alpha)
+            domain_output_t, coral_t = self.model_dom[0](backb10_t, alpha)
             
-            return head, domain_output_s, domain_output_t
+            coral_loss = coral(coral_s, coral_t)
+            
+            return head, domain_output_s, domain_output_t, coral_loss
         else:
             return head
 

@@ -32,16 +32,17 @@ class DomainDiscriminator(nn.Module):
         self.leaky_relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         
     def forward(self, x, ctx):
+        coral_x = x 
+        coral_x = self.leaky_relu(self.conv1(coral_x))
+        coral_x = self.leaky_relu(self.conv2(coral_x))
+        coral_x = self.leaky_relu(self.conv3(coral_x))
+        coral_x = self.leaky_relu(self.fc1(coral_x.view(coral_x.size(0), -1)))
+        coral_x = F.log_softmax(self.fc2(coral_x), 1)
+        
         x = ReverseLayerF.grad_reverse(x, ctx)
-        x = self.conv1(x)
-        x = self.leaky_relu(x)
-        x = self.conv2(x)
-        x = self.leaky_relu(x)
-        x = self.conv3(x)
-        x = self.leaky_relu(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc1(x)
-        x = self.leaky_relu(x)
-        x = self.fc2(x)
-        x = F.log_softmax(x, 1)
-        return x
+        x = self.leaky_relu(self.conv1(x))
+        x = self.leaky_relu(self.conv2(x))
+        x = self.leaky_relu(self.conv3(x))
+        x = self.leaky_relu(self.fc1(x.view(x.size(0), -1)))
+        x = F.log_softmax(self.fc2(x), 1)
+        return x, coral_x
