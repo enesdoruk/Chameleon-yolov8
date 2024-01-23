@@ -11,7 +11,7 @@ import os
 import sys
 sys.path.insert(0, "/AI/syndet-yolo-grl")
 
-from syndet.gradientreversal import ReverseLayerF, DomainDiscriminator
+from syndet.gradientreversal import  DomainDiscriminator
 from syndet.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
 from syndet.backbone import Backbone
 from syndet.head import Head
@@ -40,7 +40,7 @@ class DetectionModel(nn.Module):
         self.model_dom = nn.Sequential(*self.layers_grl)
 
 
-    def forward(self, x, target=None, alpha=1.):      
+    def forward(self, x, target=None):      
         backb5, backb7, backb10 = self.model[0](x)
         
         head = self.model[1](backb5,
@@ -50,12 +50,12 @@ class DetectionModel(nn.Module):
         if target is not None:
             backb5_t, backb7_t, backb10_t = self.model[0](target) 
     
-            domain_output_s, coral_s = self.model_dom[0](backb10, alpha)
-            domain_output_t, coral_t = self.model_dom[0](backb10_t, alpha)
+            coral_s = self.model_dom[0](backb10)
+            coral_t = self.model_dom[0](backb10_t)
             
             coral_loss = coral(coral_s, coral_t)
             
-            return head, domain_output_s, domain_output_t, coral_loss
+            return head, coral_loss
         else:
             return head
 
