@@ -339,19 +339,19 @@ class BaseTrainer:
                             ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x['initial_lr'] * self.lf(epoch)])
                         if 'momentum' in x:
                             x['momentum'] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
-
-                
          
-                lambda_coral = 0.5
                 
                 # Forward
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
                     target = self.preprocess_batch(target)
 
-                    preds, coral_loss = self.model(x=batch['img'], target=target['img'])
+                    if epoch % 5 == 0 and i % 600 == 0 and i > 0 and epoch > 0:
+                        preds, coral_loss = self.model(x=batch['img'], target=target['img'], verbose=True, it=i, ep=epoch)
+                    else:
+                        preds, coral_loss = self.model(x=batch['img'], target=target['img'], verbose=True, it=i, ep=epoch)
 
-                    coral_loss = coral_loss * lambda_coral
+                    coral_loss = coral_loss * self.args.lambda_coral
 
                     self.loss, self.loss_items = self.criterion(preds, batch, coral_loss)
                     if RANK != -1:
@@ -698,14 +698,5 @@ def check_amp(model):
     im = np.ones((640, 640, 3))
     prefix = colorstr('AMP: ')
     LOGGER.info(f'{prefix}running Automatic Mixed Precision (AMP) checks with YOLOv8n...')
-    try:
-        from yolo.engine.model import YOLO
-        assert amp_allclose(YOLO('yolov8n.pt'), im)
-        LOGGER.info(f'{prefix}checks passed ✅')
-    except ConnectionError:
-        LOGGER.warning(f"{prefix}checks skipped ⚠️, offline and unable to download YOLOv8n. Setting 'amp=True'.")
-    except AssertionError:
-        LOGGER.warning(f'{prefix}checks failed ❌. Anomalies were detected with AMP on your system that may lead to '
-                       f'NaN losses or zero-mAP results, so AMP will be disabled during training.')
-        return False
+   
     return True

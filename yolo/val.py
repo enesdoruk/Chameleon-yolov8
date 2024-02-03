@@ -282,12 +282,12 @@ def val(cfg=DEFAULT_CFG, use_python=False):
     data = "PRESIL.yaml" #cfg.data or 'coco128.yaml'
 
     args = dict(model=model, data=data)
-    if use_python:
-        from yolo.engine.model import YOLO
-        YOLO(model).val(**args)
-    else:
-        validator = DetectionValidator(args=args)
-        validator(model=args['model'])
+    # if use_python:
+    #     from yolo.engine.model import YOLO
+    #     YOLO(model).val(**args)
+    # else:
+    validator = DetectionValidator(args=args)
+    validator(model=args['model'])
 
 
 if __name__ == '__main__':

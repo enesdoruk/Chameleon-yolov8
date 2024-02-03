@@ -3,7 +3,6 @@ import numpy as np
 
 
 def coral(source, target):
-
     d = source.size(1)  
 
     source_c = compute_covariance(source)

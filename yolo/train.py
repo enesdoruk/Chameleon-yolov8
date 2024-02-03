@@ -21,8 +21,7 @@ from yolo.utils.tal import TaskAlignedAssigner, dist2bbox, make_anchors
 from yolo.utils.torch_utils import de_parallel, torch_distributed_zero_first
 
 import wandb
-wandb.init(project='syndetYolo8', name='yolov8-default', sync_tensorboard=True)
-
+wandb.init(name='yolov8-default', sync_tensorboard=True)
 
 # BaseTrainer python usage
 class DetectionTrainer(BaseTrainer):
@@ -36,7 +35,6 @@ class DetectionTrainer(BaseTrainer):
             batch (int, optional): Size of batches, this is for `rect`. Defaults to None.
         """
         gs = max(int(de_parallel(self.model).stride.max() if self.model else 0), 32)
-        gs=32
         return build_yolo_dataset(self.args, img_path, batch, self.data, mode=mode, rect=mode == 'val', stride=gs)
 
     def get_dataloader(self, dataset_path, batch_size, rank=0, mode='train'):
@@ -51,6 +49,7 @@ class DetectionTrainer(BaseTrainer):
                                      imgsz=self.args.imgsz,
                                      batch_size=batch_size,
                                      stride=gs,
+                                     drop_last=True,
                                      hyp=vars(self.args),
                                      augment=mode == 'train',
                                      cache=self.args.cache,

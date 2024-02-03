@@ -1,21 +1,20 @@
-from PIL import Image
-
 import cv2
 import torch
+import wandb
 import numpy as np
 import torch.nn as nn
-from torchsummary import summary
-import torchvision.transforms as transforms
+from scipy.ndimage import zoom
+from mmengine.visualization import Visualizer
 
 import os
 import sys
 sys.path.insert(0, "/AI/syndet-yolo-grl")
 
-from syndet.gradientreversal import  DomainDiscriminator
-from syndet.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)
+from syndet.modules import  Detect
 from syndet.backbone import Backbone
 from syndet.head import Head
 from syndet.coral import coral
+
 
 class DetectionModel(nn.Module):
     def __init__(self):
@@ -34,70 +33,52 @@ class DetectionModel(nn.Module):
             m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
             self.stride = m.stride
             m.bias_init() 
+            
+        self.flat = nn.Flatten()
+        self.linear = nn.Linear(1024*20*20, 256)
         
-        self.layers_grl = []
-        self.layers_grl.append(DomainDiscriminator())
-        self.model_dom = nn.Sequential(*self.layers_grl)
 
-
-    def forward(self, x, target=None):      
+    def forward(self, x, target=None, verbose=False, it=0, ep=0):      
         backb5, backb7, backb10 = self.model[0](x)
         
-        head = self.model[1](backb5,
-                             backb7, 
-                             backb10)  
-
-        if target is not None:
+        if target is None:
+            head = self.model[1](backb5,
+                                backb7, 
+                                backb10)  
+            return head
+        
+        else:
             backb5_t, backb7_t, backb10_t = self.model[0](target) 
-    
-            coral_s = self.model_dom[0](backb10)
-            coral_t = self.model_dom[0](backb10_t)
             
-            coral_loss = coral(coral_s, coral_t)
+            head = self.model[1](backb5,
+                                backb7, 
+                                backb10)  
+            
+            coral_feat_s = self.linear(self.flat(backb10)).view(-1).unsqueeze(1)
+            coral_feat_t = self.linear(self.flat(backb10_t)).view(-1).unsqueeze(1)
+        
+            coral_loss = coral(coral_feat_s, coral_feat_t)
+                
+            if verbose:
+                for i in range(x.shape[0]):
+                    visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')], save_dir=os.getcwd())
+                    img = np.array(x[i].cpu(), dtype=np.uint8).transpose(1,2,0)
+                    
+                    feat_corr_b5 = zoom(backb5[i].to(torch.float32).cpu().detach().numpy(), (1, 8, 8), order=1)
+                    feat_corr_b5 = torch.tensor(feat_corr_b5).to('cuda')
+                    drawn_img_b5 = visualizer.draw_featmap(feat_corr_b5, img, channel_reduction='select_max')
+                    
+                    feat_corr_b7 = zoom(backb7[i].to(torch.float32).cpu().detach().numpy(), (1, 16, 16), order=1)
+                    feat_corr_b7 = torch.tensor(feat_corr_b7).to('cuda')
+                    drawn_img_b7 = visualizer.draw_featmap(feat_corr_b7, img, channel_reduction='select_max')
+                    
+                    feat_corr_b10 = zoom(backb10[i].to(torch.float32).cpu().detach().numpy(), (1, 32, 32), order=1)
+                    feat_corr_b10 = torch.tensor(feat_corr_b10).to('cuda')
+                    drawn_img_b10 = visualizer.draw_featmap(feat_corr_b10, img, channel_reduction='select_max')
+                    
+                    act_img = cv2.hconcat([drawn_img_b5, drawn_img_b7, drawn_img_b10]) 
+
+                    images = wandb.Image(act_img, caption=f"epoch: {ep}, iteration: {it}, image: {i}")
+                    wandb.log({"feature_map": images})
             
             return head, coral_loss
-        else:
-            return head
-
-
-
-if __name__ == "__main__":
-    img_np = Image.open('test.png')
-
-    transform = transforms.Compose([
-        transforms.Resize((640, 640)),
-        transforms.ToTensor()])
-    
-    img = transform(img_np)
-    img = img.unsqueeze(0).to("cuda")
-
-    model = DetectionModel().to("cuda")
-    model.eval()
-    
-    model_disc = DomainAdaptationModel(num_classes=1, input_channels=1024).to("cuda")
-    model_disc.eval()
-
-    #summary(model, (3,640,640))
-    #print(model))
-
-    with torch.no_grad():
-        out, source_feat, target_feat = model(img, img)
-        print(source_feat.shape)
-        
-        out_disc_source = model_disc(source_feat, 2) 
-        out_disc_target = model_disc(target_feat, 2) 
-        print(out_disc_source)
-        print(out_disc_target)     
-
-    """ import mmcv
-    from mmengine.visualization import Visualizer
-    img_mm = mmcv.imread('test.png', channel_order='rgb')
-    visualizer = Visualizer()
-    drawn_img = visualizer.draw_featmap(out[0], img_mm, channel_reduction='select_max')
-    visualizer.show(drawn_img) """
-
-
-    """ from torchview import draw_graph
-    model_graph = draw_graph(model, input_size=(1,3,416,416), device='meta', save_graph=True, filename='arch', roll=True, hide_inner_tensors=False,
-    hide_module_functions=False)#, expand_nested=True)
-    model_graph.visual_graph """

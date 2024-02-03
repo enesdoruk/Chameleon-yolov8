@@ -104,6 +104,7 @@ def build_dataloader(dataset, batch, workers, shuffle=True, rank=-1):
                               num_workers=nw,
                               sampler=sampler,
                               pin_memory=PIN_MEMORY,
+                              drop_last=True,
                               collate_fn=getattr(dataset, 'collate_fn', None),
                               worker_init_fn=seed_worker,
                               generator=generator)
