@@ -349,7 +349,7 @@ class BaseTrainer:
                     if epoch % 5 == 0 and i % 600 == 0 and i > 0 and epoch > 0:
                         preds, coral_loss = self.model(x=batch['img'], target=target['img'], verbose=True, it=i, ep=epoch)
                     else:
-                        preds, coral_loss = self.model(x=batch['img'], target=target['img'], verbose=True, it=i, ep=epoch)
+                        preds, coral_loss = self.model(x=batch['img'], target=target['img'], verbose=False, it=i, ep=epoch)
 
                     coral_loss = coral_loss * self.args.lambda_coral
 
