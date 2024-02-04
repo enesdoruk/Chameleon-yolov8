@@ -87,6 +87,7 @@ box: 7.5  # box loss gain
 cls: 0.5  # cls loss gain (scale with pixels)
 dfl: 1.5  # dfl loss gain
 disc: 1.0 #4.5 # domain disc loss gain
+coral: 1.0
 label_smoothing: 0.0  # label smoothing (fraction)
 nbs: 64  # nominal batch size
 hsv_h: 0.015  # image HSV-Hue augmentation (fraction)
