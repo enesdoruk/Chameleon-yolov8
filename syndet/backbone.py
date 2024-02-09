@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0, "/AI/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo")
 
 import torch.nn as nn
 from syndet.modules import  (Conv, C2f, SPPF)

@@ -8,7 +8,7 @@ from mmengine.visualization import Visualizer
 
 import os
 import sys
-sys.path.insert(0, "/AI/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo")
 
 from syndet.modules import  Detect
 from syndet.backbone import Backbone
@@ -31,19 +31,20 @@ class DetectionModel(nn.Module):
         self.model_dom = nn.Sequential(*self.layers_grl)
         
         self.flat = nn.Flatten()
-        self.linear = nn.Linear(1024*20*20, 256)
-
+        self.linear = nn.Linear(1024*20*20, 64)
+        
         m = self.model[-1].detect 
         if isinstance(m, (Detect)):
             s = 256 
             m.inplace = True
-            forward = lambda x:  self.forward(x)
-            m.stride = torch.tensor([s / x.shape[-2] for x in forward(torch.zeros(1, 3, s, s))])  
+            forward = lambda source:  self.forward(source)
+            m.stride = torch.tensor([s / source.shape[-2] for source in forward(torch.zeros(1, 3, s, s))])  
             self.stride = m.stride
             m.bias_init() 
 
-    def forward(self, x, target=None, verbose=False, it=0, ep=0, alpha=1.):      
-        backb5, backb7, backb10 = self.model[0](x)
+
+    def forward(self, source, target=None, verbose=False, it=0, ep=0, alpha=1.):      
+        backb5, backb7, backb10 = self.model[0](source)
         
         if target is None:
             head = self.model[1](backb5,
@@ -52,7 +53,7 @@ class DetectionModel(nn.Module):
             return head
         
         else:
-            backb5_t, backb7_t, backb10_t = self.model[0](target) 
+            backb5_t, backb7_t, backb10_t = self.model[0](target)    
             
             head = self.model[1](backb5,
                                 backb7, 
@@ -67,9 +68,9 @@ class DetectionModel(nn.Module):
             domain_output_t = self.model_dom[0](backb10_t, alpha)
                 
             if verbose:
-                for i in range(x.shape[0]):
+                for i in range(source.shape[0]):
                     visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')], save_dir=os.getcwd())
-                    img = np.array(x[i].cpu(), dtype=np.uint8).transpose(1,2,0)
+                    img = np.array(source[i].cpu(), dtype=np.uint8).transpose(1,2,0)
                     
                     feat_corr_b5 = zoom(backb5[i].to(torch.float32).cpu().detach().numpy(), (1, 8, 8), order=1)
                     feat_corr_b5 = torch.tensor(feat_corr_b5).to('cuda')

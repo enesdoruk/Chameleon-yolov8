@@ -13,6 +13,7 @@ from copy import deepcopy
 from datetime import datetime
 from pathlib import Path
 
+import wandb
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -294,7 +295,8 @@ class BaseTrainer:
         if self.args.close_mosaic:
             base_idx = (self.epochs - self.args.close_mosaic) * nb
             self.plot_idx.extend([base_idx, base_idx + 1, base_idx + 2])
-                    
+        
+        grads_mags = []  
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         for epoch in range(self.start_epoch, self.epochs):
             if epoch % 5 == 0:
@@ -324,7 +326,7 @@ class BaseTrainer:
                 LOGGER.info(self.progress_string())
                 pbar = tqdm(enumerate(zip(self.train_loader, self.train_loader_t)), total=nb, bar_format=TQDM_BAR_FORMAT)
             self.tloss = None
-
+            
             self.optimizer.zero_grad()
             for i, (batch, target) in pbar:
                 self.run_callbacks('on_train_batch_start')
@@ -342,7 +344,7 @@ class BaseTrainer:
 
                 
                 min_loader = min(len(self.train_loader), len(self.train_loader_t))
-                p = float(i + epoch * min_loader) / self.epochs / min_loader
+                p = float(i + epoch * min_loader) / (self.epochs * min_loader)
                 self.alpha = 2. / (1. + np.exp(-10 * p)) - 1 
                 
                 # Forward
@@ -351,10 +353,10 @@ class BaseTrainer:
                     target = self.preprocess_batch(target)
 
                     if epoch % 5 == 0 and i % 600 == 0 and i > 0 and epoch > 0:
-                        preds, coral_loss, preds_disc_s, preds_disc_t = self.model(x=batch['img'], target=target['img'], 
+                        preds, coral_loss, preds_disc_s, preds_disc_t = self.model(source=batch['img'], target=target['img'], 
                                                                                    verbose=True, it=i, ep=epoch, alpha=self.alpha)
                     else:
-                        preds, coral_loss, preds_disc_s, preds_disc_t = self.model(x=batch['img'], target=target['img'], 
+                        preds, coral_loss, preds_disc_s, preds_disc_t = self.model(source=batch['img'], target=target['img'], 
                                                                                    verbose=False, it=i, ep=epoch, alpha=self.alpha)
 
                     coral_loss = coral_loss * self.args.lambda_coral
@@ -362,7 +364,6 @@ class BaseTrainer:
                     source_labels = Variable(torch.zeros((batch['img'].size()[0])).type(torch.LongTensor).cuda())
                     target_labels = Variable(torch.ones((target['img'].size()[0])).type(torch.LongTensor).cuda())
                     disc_loss = [preds_disc_s, source_labels, preds_disc_t, target_labels]
-
 
                     self.loss, self.loss_items = self.criterion(preds, batch, coral_loss, disc_loss)
                     if RANK != -1:
@@ -372,7 +373,7 @@ class BaseTrainer:
 
                 # Backward
                 self.scaler.scale(self.loss).backward()
-                
+                       
                 # Optimize - https://pytorch.org/docs/master/notes/amp_examples.html
                 if ni - last_opt_step >= self.accumulate:
                     self.optimizer_step()
@@ -391,7 +392,7 @@ class BaseTrainer:
                         self.plot_training_samples(batch, ni)
 
                 self.run_callbacks('on_train_batch_end')
-
+  
             self.lr = {f'lr/pg{ir}': x['lr'] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
 
             self.scheduler.step()

@@ -33,15 +33,10 @@ class DomainDiscriminator(nn.Module):
         
     def forward(self, x, ctx):
         x = ReverseLayerF.grad_reverse(x, ctx)
-        x = self.conv1(x)
-        x = self.leaky_relu(x)
-        x = self.conv2(x)
-        x = self.leaky_relu(x)
-        x = self.conv3(x)
-        x = self.leaky_relu(x)
+        x = self.leaky_relu(self.conv1(x))
+        x = self.leaky_relu(self.conv2(x))
+        x = self.leaky_relu(self.conv3(x))
         x = x.view(x.size(0), -1)
-        x = self.fc1(x)
-        x = self.leaky_relu(x)
-        x = self.fc2(x)
-        x = F.log_softmax(x, 1)
+        x = self.leaky_relu(self.fc1(x))
+        x = F.log_softmax(self.fc2(x), 1)
         return x
