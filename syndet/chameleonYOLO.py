@@ -13,8 +13,6 @@ sys.path.insert(0, "/AI/syndet-yolo")
 from syndet.modules import  Detect
 from syndet.backbone import Backbone
 from syndet.head import Head
-from syndet.coral import coral
-from syndet.gradientreversal import  DomainDiscriminator
 
 
 class DetectionModel(nn.Module):
@@ -26,13 +24,6 @@ class DetectionModel(nn.Module):
         self.layers.append(Head())
         self.model = nn.Sequential(*self.layers)
         
-        self.layers_grl = []
-        self.layers_grl.append(DomainDiscriminator())
-        self.model_dom = nn.Sequential(*self.layers_grl)
-        
-        self.flat = nn.Flatten()
-        self.linear = nn.Linear(1024*20*20, 64)
-        
         m = self.model[-1].detect 
         if isinstance(m, (Detect)):
             s = 256 
@@ -43,7 +34,7 @@ class DetectionModel(nn.Module):
             m.bias_init() 
 
 
-    def forward(self, source, target=None, verbose=False, it=0, ep=0, alpha=1.):      
+    def forward(self, source, target=None, verbose=False, it=0, ep=0):      
         backb5, backb7, backb10 = self.model[0](source)
         
         if target is None:
@@ -58,14 +49,6 @@ class DetectionModel(nn.Module):
             head = self.model[1](backb5,
                                 backb7, 
                                 backb10)  
-            
-            coral_feat_s = self.linear(self.flat(backb10)).view(-1).unsqueeze(1)
-            coral_feat_t = self.linear(self.flat(backb10_t)).view(-1).unsqueeze(1)
-        
-            coral_loss = coral(coral_feat_s, coral_feat_t)
-            
-            domain_output_s = self.model_dom[0](backb10, alpha)
-            domain_output_t = self.model_dom[0](backb10_t, alpha)
                 
             if verbose:
                 for i in range(source.shape[0]):
@@ -89,4 +72,4 @@ class DetectionModel(nn.Module):
                     images = wandb.Image(act_img, caption=f"epoch: {ep}, iteration: {it}, image: {i}")
                     wandb.log({"feature_map": images})
             
-            return head, coral_loss, domain_output_s, domain_output_t
+            return head

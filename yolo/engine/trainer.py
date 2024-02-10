@@ -341,11 +341,6 @@ class BaseTrainer:
                             ni, xi, [self.args.warmup_bias_lr if j == 0 else 0.0, x['initial_lr'] * self.lf(epoch)])
                         if 'momentum' in x:
                             x['momentum'] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
-
-                
-                min_loader = min(len(self.train_loader), len(self.train_loader_t))
-                p = float(i + epoch * min_loader) / (self.epochs * min_loader)
-                self.alpha = 2. / (1. + np.exp(-10 * p)) - 1 
                 
                 # Forward
                 with torch.cuda.amp.autocast(self.amp):
@@ -353,19 +348,14 @@ class BaseTrainer:
                     target = self.preprocess_batch(target)
 
                     if epoch % 5 == 0 and i % 600 == 0 and i > 0 and epoch > 0:
-                        preds, coral_loss, preds_disc_s, preds_disc_t = self.model(source=batch['img'], target=target['img'], 
-                                                                                   verbose=True, it=i, ep=epoch, alpha=self.alpha)
+                        preds= self.model(source=batch['img'], target=target['img'], 
+                                                                                   verbose=True, it=i, ep=epoch)
                     else:
-                        preds, coral_loss, preds_disc_s, preds_disc_t = self.model(source=batch['img'], target=target['img'], 
-                                                                                   verbose=False, it=i, ep=epoch, alpha=self.alpha)
+                        preds = self.model(source=batch['img'], target=target['img'], 
+                                                                                   verbose=False, it=i, ep=epoch)
 
-                    coral_loss = coral_loss * self.args.lambda_coral
-                    
-                    source_labels = Variable(torch.zeros((batch['img'].size()[0])).type(torch.LongTensor).cuda())
-                    target_labels = Variable(torch.ones((target['img'].size()[0])).type(torch.LongTensor).cuda())
-                    disc_loss = [preds_disc_s, source_labels, preds_disc_t, target_labels]
 
-                    self.loss, self.loss_items = self.criterion(preds, batch, coral_loss, disc_loss)
+                    self.loss, self.loss_items = self.criterion(preds, batch)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \
