@@ -13,13 +13,15 @@ sys.path.insert(0, "/AI/syndet-yolo")
 from syndet.modules import  Detect
 from syndet.backbone import Backbone
 from syndet.head import Head
-
+from syndet.nwd import NuclearWassersteinDiscrepancy
+from syndet.discriminator import DomainDiscriminator
 
 class DetectionModel(nn.Module):
     def __init__(self):
         super(DetectionModel, self).__init__()
         
         self.layers = []
+        self.layers.append(DomainDiscriminator())
         self.layers.append(Backbone())
         self.layers.append(Head())
         self.model = nn.Sequential(*self.layers)
@@ -35,21 +37,27 @@ class DetectionModel(nn.Module):
 
 
     def forward(self, source, target=None, verbose=False, it=0, ep=0):      
-        backb5, backb7, backb10 = self.model[0](source)
+        backb5, backb7, backb10 = self.model[1](source)
         
         if target is None:
-            head = self.model[1](backb5,
+            head = self.model[2](backb5,
                                 backb7, 
                                 backb10)  
             return head
         
         else:
-            backb5_t, backb7_t, backb10_t = self.model[0](target)    
+            backb5_t, backb7_t, backb10_t = self.model[1](target)    
             
-            head = self.model[1](backb5,
+            head = self.model[2](backb5,
                                 backb7, 
                                 backb10)  
-                
+            
+            discrepancy = NuclearWassersteinDiscrepancy(self.model[0])
+            nwd_x = torch.cat((backb10, backb10_t), dim=0)
+            discrepancy_loss = -discrepancy(nwd_x)
+            trade_off_lambda = 0.001
+            adv_loss = discrepancy_loss * trade_off_lambda
+            
             if verbose:
                 for i in range(source.shape[0]):
                     visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')], save_dir=os.getcwd())
@@ -72,4 +80,4 @@ class DetectionModel(nn.Module):
                     images = wandb.Image(act_img, caption=f"epoch: {ep}, iteration: {it}, image: {i}")
                     wandb.log({"feature_map": images})
             
-            return head
+            return head, adv_loss
