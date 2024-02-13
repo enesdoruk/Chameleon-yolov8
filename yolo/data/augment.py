@@ -11,7 +11,7 @@ import torchvision.transforms as T
 
 import os
 import sys
-sys.path.insert(0, "/AI/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo")
 
 from yolo.utils import LOGGER, colorstr
 from yolo.utils.checks import check_version

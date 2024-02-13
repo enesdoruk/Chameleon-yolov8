@@ -9,7 +9,7 @@ import torchvision.transforms as transforms
 
 import os
 import sys
-sys.path.insert(0, "/AI/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo")
 
 from syndet.gradientreversal import ReverseLayerF, DomainDiscriminator
 from syndet.modules import (DFL, Concat, Upsample, Detect, Conv, Bottleneck, C2f, SPPF)

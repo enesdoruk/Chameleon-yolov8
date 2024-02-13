@@ -6,7 +6,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, "/AI/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo")
 
 from syndet.chameleonYOLO import DetectionModel
 from yolo.val import *
