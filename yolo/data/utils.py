@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 import os
 import sys
-sys.path.insert(0,  "/AI/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo")
 
 from nn.autobackend import check_class_names
 from yolo.utils import (DATASETS_DIR, LOGGER, NUM_THREADS, ROOT, SETTINGS_YAML, clean_url, colorstr, emojis,

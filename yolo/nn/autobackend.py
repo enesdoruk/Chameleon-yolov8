@@ -40,7 +40,7 @@ def check_class_names(names):
 class AutoBackend(nn.Module):
 
     def __init__(self,
-                 weights='yolov8n.pt',
+                 weights,
                  device=torch.device('cpu'),
                  dnn=False,
                  data=None,

@@ -21,6 +21,7 @@ from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import lr_scheduler
 from tqdm import tqdm
+import torch.nn.functional as F
 
 from torch.autograd import Variable
 from nn.tasks import attempt_load_one_weight, attempt_load_weights
@@ -294,10 +295,11 @@ class BaseTrainer:
         if self.args.close_mosaic:
             base_idx = (self.epochs - self.args.close_mosaic) * nb
             self.plot_idx.extend([base_idx, base_idx + 1, base_idx + 2])
-                    
+        
+        kl_loss = nn.KLDivLoss(reduction="batchmean")
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         for epoch in range(self.start_epoch, self.epochs):
-            if epoch % 30 == 0:
+            if epoch % 5 == 0:
                 self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
                 self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
             self.epoch = epoch
@@ -341,22 +343,16 @@ class BaseTrainer:
                             x['momentum'] = np.interp(ni, xi, [self.args.warmup_momentum, self.args.momentum])
 
                 
-                min_loader = min(len(self.train_loader), len(self.train_loader_t))
-                p = float(i + epoch * min_loader) / self.epochs / min_loader
-                self.alpha = 2. / (1. + np.exp(-10 * p)) - 1 
-                
                 # Forward
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
                     target = self.preprocess_batch(target)
 
-                    preds, preds_disc_s, preds_disc_t = self.model(x=batch['img'], target=target['img'], alpha=self.alpha)
+                    preds, preds_disc_s, preds_disc_t, log_soft_s = self.model(x=batch['img'], target=target['img'])
 
-                    source_labels = Variable(torch.zeros((batch['img'].size()[0])).type(torch.LongTensor).cuda())
-                    target_labels = Variable(torch.ones((target['img'].size()[0])).type(torch.LongTensor).cuda())
-
-                    disc = [preds_disc_s, source_labels, preds_disc_t, target_labels]
-                    self.loss, self.loss_items = self.criterion(preds, batch, disc)
+                    kl_loss_out = kl_loss(log_soft_s, preds_disc_t)
+                    
+                    self.loss, self.loss_items = self.criterion(preds, batch, kl_loss_out)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \

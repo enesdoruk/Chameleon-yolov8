@@ -1,6 +1,6 @@
 import os
 import sys
-sys.path.insert(0,  "/AI/syndet-yolo-grl")
+sys.path.insert(0, "/AI/syndet-yolo")
 
 from yolo.data.base import BaseDataset
 from yolo.data.build import build_dataloader, build_yolo_dataset, load_inference_source

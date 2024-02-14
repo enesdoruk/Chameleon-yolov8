@@ -1,24 +1,6 @@
-import torch
 import torch.nn as nn
-from torch.autograd import grad
 import torch.nn.functional as F
-from torch.autograd import Function
 
-
-class ReverseLayerF(Function):
-    @staticmethod
-    def forward(ctx, x, alpha):
-        ctx.alpha = alpha
-        return x.view_as(x)
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        output = grad_output.neg() * ctx.alpha
-        return output, None
-    
-    def grad_reverse(x, ctx):
-        return ReverseLayerF.apply(x, ctx)
-    
 
 class DomainDiscriminator(nn.Module):
     def __init__(self) -> None:
@@ -31,8 +13,7 @@ class DomainDiscriminator(nn.Module):
         self.fc2 = nn.Linear(512, 2)
         self.leaky_relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
         
-    def forward(self, x, ctx):
-        x = ReverseLayerF.grad_reverse(x, ctx)
+    def forward(self, x):
         x = self.conv1(x)
         x = self.leaky_relu(x)
         x = self.conv2(x)
@@ -43,5 +24,8 @@ class DomainDiscriminator(nn.Module):
         x = self.fc1(x)
         x = self.leaky_relu(x)
         x = self.fc2(x)
-        x = F.log_softmax(x, 1)
-        return x
+        soft = x
+        log_soft = x
+        log_soft = F.log_softmax(log_soft, 1)
+        soft = F.softmax(soft,1)
+        return soft, log_soft
