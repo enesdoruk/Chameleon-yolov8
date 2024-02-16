@@ -117,8 +117,6 @@ class YOLODataset(BaseDataset):
         if exists and LOCAL_RANK in (-1, 0):
             d = f'Scanning {cache_path}... {nf} images, {nm + ne} backgrounds, {nc} corrupt'
             tqdm(None, desc=self.prefix + d, total=n, initial=n, bar_format=TQDM_BAR_FORMAT)  # display cache results
-            if cache['msgs']:
-                LOGGER.info('\n'.join(cache['msgs']))  # display warnings
         if nf == 0:  # number of labels found
             raise FileNotFoundError(f'{self.prefix}No labels found in {cache_path}, can not start training. {HELP_URL}')
 
