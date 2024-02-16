@@ -1,22 +1,57 @@
-import torch.nn as nn
+import torch
 import torch.nn.functional as F
+from torch import nn
 
-class DomainDiscriminator(nn.Module):
-    def __init__(self) -> None:
-        super(DomainDiscriminator, self).__init__()
+import sys
+sys.path.insert(0, "/AI/syndet-yolo")
+
+from syndet.gradient_reversal import GradientReversal
+
+
+class Discriminator(nn.Module):
+    def __init__(self, num_convs=2, in_channels=256, grad_reverse_lambda=-1.0):
+        super(Discriminator, self).__init__()
+
+        dis_tower = []
+        for i in range(num_convs):
+            dis_tower.append(
+                nn.Conv2d(
+                    in_channels,
+                    in_channels,
+                    kernel_size=3,
+                    stride=1,
+                    padding=1
+                )
+            )
+            dis_tower.append(nn.GroupNorm(32, in_channels))
+            dis_tower.append(nn.ReLU())
+
+        self.add_module('dis_tower', nn.Sequential(*dis_tower))
+
+        self.cls_logits = nn.Conv2d(
+            in_channels, 1, kernel_size=3, stride=1,
+            padding=1
+        )
+
+        # initialization
+        for modules in [self.dis_tower, self.cls_logits]:
+            for l in modules.modules():
+                if isinstance(l, nn.Conv2d):
+                    torch.nn.init.normal_(l.weight, std=0.01)
+                    torch.nn.init.constant_(l.bias, 0)
+
+        self.grad_reverse = GradientReversal(grad_reverse_lambda)
+        self.loss_fn = nn.BCEWithLogitsLoss()
+
+
+    def forward(self, feature, target):
+        assert target == 0 or target == 1 or target == 0.1 or target == 0.9
         
-        self.conv1 = nn.Conv2d(1024, 512, kernel_size=3, padding=1)
-        self.conv2 = nn.Conv2d(512, 128, kernel_size=3, padding=1)
-        self.conv3 = nn.Conv2d(128, 128, kernel_size=3, padding=1)
-        self.fc1 = nn.Linear(51200, 512)
-        self.fc2 = nn.Linear(512, 2)
-        self.leaky_relu = nn.LeakyReLU(negative_slope=0.2, inplace=True)
-        
-    def forward(self, x):
-        feat_x = self.leaky_relu(self.conv1(x))
-        feat_x = self.leaky_relu(self.conv2(feat_x))
-        feat_x = self.leaky_relu(self.conv3(feat_x))
-        x = feat_x.view(feat_x.size(0), -1)
-        x = self.leaky_relu(self.fc1(x))
-        x = F.log_softmax(self.fc2(x), 1)
-        return x, feat_x
+        feature = self.grad_reverse(feature)
+        x = self.dis_tower(feature)
+        x = self.cls_logits(x)
+
+        target = torch.full(x.shape, target, dtype=torch.float, device=x.device)
+        loss = self.loss_fn(x, target)
+
+        return loss

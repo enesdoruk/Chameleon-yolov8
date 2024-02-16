@@ -299,7 +299,7 @@ class BaseTrainer:
         grads_mags = []  
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         for epoch in range(self.start_epoch, self.epochs):
-            if epoch % 5 == 0:
+            if epoch % 1 == 0:
                 self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
                 self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
             self.epoch = epoch
@@ -348,11 +348,9 @@ class BaseTrainer:
                     target = self.preprocess_batch(target)
 
                     if epoch % 5 == 0 and i % 600 == 0 and i > 0 and epoch > 0:
-                        preds, adv_loss = self.model(source=batch['img'], target=target['img'], 
-                                                                                   verbose=True, it=i, ep=epoch)
+                        preds, adv_loss = self.model(source=batch['img'], target=target['img'], verbose=True, it=i, ep=epoch)
                     else:
-                        preds, adv_loss = self.model(source=batch['img'], target=target['img'], 
-                                                                                   verbose=False, it=i, ep=epoch)
+                        preds, adv_loss = self.model(source=batch['img'], target=target['img'], verbose=False, it=i, ep=epoch)
 
 
                     self.loss, self.loss_items = self.criterion(preds, batch, adv_loss)

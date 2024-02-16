@@ -13,15 +13,15 @@ sys.path.insert(0, "/AI/syndet-yolo")
 from syndet.modules import  Detect
 from syndet.backbone import Backbone
 from syndet.head import Head
-from syndet.nwd import NuclearWassersteinDiscrepancy
-from syndet.discriminator import DomainDiscriminator
+from syndet.discriminator import Discriminator
+
 
 class DetectionModel(nn.Module):
     def __init__(self):
         super(DetectionModel, self).__init__()
         
         self.layers = []
-        self.layers.append(DomainDiscriminator())
+        self.layers.append(Discriminator(num_convs=4, in_channels=1024, grad_reverse_lambda=0.02))
         self.layers.append(Backbone())
         self.layers.append(Head())
         self.model = nn.Sequential(*self.layers)
@@ -52,11 +52,10 @@ class DetectionModel(nn.Module):
                                 backb7, 
                                 backb10)  
             
-            discrepancy = NuclearWassersteinDiscrepancy(self.model[0])
-            nwd_x = torch.cat((backb10, backb10_t), dim=0)
-            discrepancy_loss = -discrepancy(nwd_x)
-            trade_off_lambda = 0.001
-            adv_loss = discrepancy_loss * trade_off_lambda
+            grl_b10_s = self.model[0](backb10, 0)            
+            grl_b10_t = self.model[0](backb10_t, 1)
+            
+            adv_loss = grl_b10_s + grl_b10_t
             
             if verbose:
                 for i in range(source.shape[0]):
