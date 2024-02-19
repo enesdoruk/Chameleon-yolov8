@@ -297,9 +297,9 @@ class BaseTrainer:
         
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         for epoch in range(self.start_epoch, self.epochs):
-            if epoch % 5 == 0:
-                self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
-                self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
+            # if epoch % 5 == 0:
+            #     self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
+            #     self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
             self.epoch = epoch
             self.run_callbacks('on_train_epoch_start')
             self.model.train()
