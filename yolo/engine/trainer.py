@@ -346,11 +346,11 @@ class BaseTrainer:
                     target = self.preprocess_batch(target)
 
                     if epoch % 5 == 0 and i % 600 == 0 and i > 0 and epoch > 0:
-                        preds, adv_loss = self.model(source=batch['img'], target=target['img'], verbose=True, it=i, ep=epoch)
+                        preds, safn_loss = self.model(source=batch['img'], target=target['img'], verbose=True, it=i, ep=epoch)
                     else:
-                        preds, adv_loss = self.model(source=batch['img'], target=target['img'], verbose=False, it=i, ep=epoch)
+                        preds, safn_loss = self.model(source=batch['img'], target=target['img'], verbose=False, it=i, ep=epoch)
 
-                    self.loss, self.loss_items = self.criterion(preds, batch, adv_loss)
+                    self.loss, self.loss_items = self.criterion(preds, batch, safn_loss)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \

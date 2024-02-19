@@ -13,7 +13,7 @@ sys.path.insert(0, "/AI/syndet-yolo")
 from syndet.modules import  Detect
 from syndet.backbone import Backbone
 from syndet.head import Head
-from syndet.discriminator import Discriminator
+from syndet.SAFN import DomainAttention, get_L2norm_loss_self_driven
 
 
 class DetectionModel(nn.Module):
@@ -21,7 +21,7 @@ class DetectionModel(nn.Module):
         super(DetectionModel, self).__init__()
         
         self.layers = []
-        self.layers.append(Discriminator(num_convs=4, in_channels=1024, grad_reverse_lambda=0.02))
+        self.layers.append(DomainAttention(in_channels=1024, out_channel=32, drop_r=0.5))
         self.layers.append(Backbone())
         self.layers.append(Head())
         self.model = nn.Sequential(*self.layers)
@@ -53,10 +53,13 @@ class DetectionModel(nn.Module):
                                 backb10)  
             
 
-            grl_b10_s = self.model[0](backb10, 0, grl=True)            
-            grl_b10_t = self.model[0](backb10_t, 1, grl=True)
+            b10_s_safn = self.model[0](backb10)  
+            b10_t_safn = self.model[0](backb10_t)      
             
-            adv_loss = grl_b10_s + grl_b10_t
+            b10_s_l2norm = get_L2norm_loss_self_driven(b10_s_safn)         
+            b10_t_l2norm = get_L2norm_loss_self_driven(b10_t_safn)        
+
+            safn_loss = b10_s_l2norm + b10_t_l2norm
                         
             if verbose:
                 for i in range(source.shape[0]):
@@ -80,4 +83,4 @@ class DetectionModel(nn.Module):
                     images = wandb.Image(act_img, caption=f"epoch: {ep}, iteration: {it}, image: {i}")
                     wandb.log({"feature_map": images})
             
-            return head, adv_loss
+            return head, safn_loss
