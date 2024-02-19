@@ -14,14 +14,14 @@ from syndet.modules import  Detect
 from syndet.backbone import Backbone
 from syndet.head import Head
 from syndet.discriminator import Discriminator
-
+from syndet.cdan import CDAN, calc_coeff, Entropy
+from syndet.adverserial import AdversarialNetwork
 
 class DetectionModel(nn.Module):
     def __init__(self):
         super(DetectionModel, self).__init__()
         
         self.layers = []
-        self.layers.append(Discriminator(num_convs=4, in_channels=1024, grad_reverse_lambda=0.02))
         self.layers.append(Backbone())
         self.layers.append(Head())
         self.model = nn.Sequential(*self.layers)
@@ -35,29 +35,39 @@ class DetectionModel(nn.Module):
             self.stride = m.stride
             m.bias_init() 
 
-
+        self.disc = Discriminator(input_shape=32*18*18, cls_num=2)
+        self.ad_net = AdversarialNetwork(41472, 1024)
+        
     def forward(self, source, target=None, verbose=False, it=0, ep=0):      
-        backb5, backb7, backb10 = self.model[1](source)
+        backb5, backb7, backb10 = self.model[0](source)
         
         if target is None:
-            head = self.model[2](backb5,
+            head = self.model[1](backb5,
                                 backb7, 
                                 backb10)  
             return head
         
         else:
-            backb5_t, backb7_t, backb10_t = self.model[1](target)    
+            backb5_t, backb7_t, backb10_t = self.model[0](target)    
             
-            head = self.model[2](backb5,
+            head = self.model[1](backb5,
                                 backb7, 
                                 backb10)  
             
-
-            grl_b10_s = self.model[0](backb10, 0, grl=True)            
-            grl_b10_t = self.model[0](backb10_t, 1, grl=True)
             
-            adv_loss = grl_b10_s + grl_b10_t
-                        
+            cdan_trade_off = 1.0
+            feat_source, out_source = self.disc(backb10)
+            feat_target, out_target = self.disc(backb10_t)
+
+            features = torch.cat((feat_source, feat_target), dim=0)
+            outputs = torch.cat((out_source, out_target), dim=0)
+            softmax_out = nn.Softmax(dim=1)(outputs)
+
+            entropy = Entropy(softmax_out)
+            coef = calc_coeff(iter_num=it)
+            transfer_loss = CDAN([features, softmax_out], self.ad_net, entropy, coef, None)
+            transfer_loss *= cdan_trade_off
+            
             if verbose:
                 for i in range(source.shape[0]):
                     visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')], save_dir=os.getcwd())
@@ -80,4 +90,4 @@ class DetectionModel(nn.Module):
                     images = wandb.Image(act_img, caption=f"epoch: {ep}, iteration: {it}, image: {i}")
                     wandb.log({"feature_map": images})
             
-            return head, adv_loss
+            return head, transfer_loss

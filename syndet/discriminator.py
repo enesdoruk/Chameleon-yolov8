@@ -1,61 +1,29 @@
-import torch
-import torch.nn.functional as F
-from torch import nn
-
-import sys
-sys.path.insert(0, "/AI/syndet-yolo")
-
-from syndet.gradient_reversal import GradientReversal
-
+import torch.nn as nn
 
 class Discriminator(nn.Module):
-    def __init__(self, num_convs=2, in_channels=256, grad_reverse_lambda=-1.0):
+    def __init__(self, input_shape=32*18*18, cls_num=4):
         super(Discriminator, self).__init__()
-
-        dis_tower = []
-        for i in range(num_convs):
-            dis_tower.append(
-                nn.Conv2d(
-                    in_channels,
-                    in_channels,
-                    kernel_size=3,
-                    stride=1,
-                    padding=1
-                )
-            )
-            dis_tower.append(nn.GroupNorm(32, in_channels))
-            dis_tower.append(nn.ReLU())
-
-        self.add_module('dis_tower', nn.Sequential(*dis_tower))
-
-        self.cls_logits = nn.Conv2d(
-            in_channels, 1, kernel_size=3, stride=1,
-            padding=1
-        )
-
-        # initialization
-        for modules in [self.dis_tower, self.cls_logits]:
-            for l in modules.modules():
-                if isinstance(l, nn.Conv2d):
-                    torch.nn.init.normal_(l.weight, std=0.01)
-                    torch.nn.init.constant_(l.bias, 0)
-
-        self.grad_reverse = GradientReversal(grad_reverse_lambda)
-        self.loss_fn = nn.BCEWithLogitsLoss()
-
-
-    def forward(self, feature, target, grl=True):
-        assert target == 0 or target == 1 or target == 0.1 or target == 0.9
         
-        if grl:
-            feature = self.grad_reverse(feature)
-        x = self.dis_tower(feature)
-        x_out = self.cls_logits(x)
+        self.conv1 = nn.Conv2d(1024, 32, kernel_size=3)
+        self.flatten = nn.Flatten()
+        
+        self.fc1 = nn.Linear(input_shape, 1024)
+        self.fc2 = nn.Linear(1024, 128)
+        self.fc3 = nn.Linear(128, cls_num)
+        
+        self.relu1 = nn.ReLU()
 
-        target = torch.full(x_out.shape, target, dtype=torch.float, device=x_out.device)
-        loss = self.loss_fn(x_out, target)
+        self.ln1 = nn.LayerNorm(1024)
+        self.ln2 = nn.LayerNorm(128)
 
-        if grl: 
-            return loss
-        else:
-            return x
+    def forward(self, feature):
+        feat = self.relu1(self.conv1(feature))
+        feat = self.flatten(feat)
+                
+        out = self.ln1(self.fc1(feat))
+        out = self.ln2(self.fc2(out))
+        out = self.fc3(out)
+        
+        return feat, out
+      
+
