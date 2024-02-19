@@ -20,6 +20,8 @@ from yolo.utils.plotting import plot_images, plot_labels, plot_results
 from yolo.utils.tal import TaskAlignedAssigner, dist2bbox, make_anchors
 from yolo.utils.torch_utils import de_parallel, torch_distributed_zero_first
 
+from torch.utils.data import ConcatDataset
+
 import wandb
 wandb.init(name='yolov8-default', sync_tensorboard=True)
 
@@ -64,6 +66,7 @@ class DetectionTrainer(BaseTrainer):
         assert mode in ['train', 'val']
         with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
             dataset = self.build_dataset(dataset_path, mode, batch_size)
+
         shuffle = mode == 'train'
         if getattr(dataset, 'rect', False) and shuffle:
             LOGGER.warning("WARNING ⚠️ 'rect=True' is incompatible with DataLoader shuffle, setting shuffle=False")

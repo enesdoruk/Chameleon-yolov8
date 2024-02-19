@@ -44,14 +44,18 @@ class Discriminator(nn.Module):
         self.loss_fn = nn.BCEWithLogitsLoss()
 
 
-    def forward(self, feature, target):
+    def forward(self, feature, target, grl=True):
         assert target == 0 or target == 1 or target == 0.1 or target == 0.9
         
-        feature = self.grad_reverse(feature)
+        if grl:
+            feature = self.grad_reverse(feature)
         x = self.dis_tower(feature)
-        x = self.cls_logits(x)
+        x_out = self.cls_logits(x)
 
-        target = torch.full(x.shape, target, dtype=torch.float, device=x.device)
-        loss = self.loss_fn(x, target)
+        target = torch.full(x_out.shape, target, dtype=torch.float, device=x_out.device)
+        loss = self.loss_fn(x_out, target)
 
-        return loss
+        if grl: 
+            return loss
+        else:
+            return x

@@ -258,7 +258,6 @@ class BaseTrainer:
         self.batch_size = self.batch_size // world_size if world_size > 1 else self.batch_size
         self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
         self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
-
         
         if RANK in (-1, 0):
             self.test_loader = self.get_dataloader(self.testset_s, batch_size=self.batch_size * 2, rank=-1, mode='val')
@@ -296,10 +295,9 @@ class BaseTrainer:
             base_idx = (self.epochs - self.args.close_mosaic) * nb
             self.plot_idx.extend([base_idx, base_idx + 1, base_idx + 2])
         
-        grads_mags = []  
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         for epoch in range(self.start_epoch, self.epochs):
-            if epoch % 1 == 0:
+            if epoch % 5 == 0:
                 self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
                 self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
             self.epoch = epoch
@@ -351,7 +349,6 @@ class BaseTrainer:
                         preds, adv_loss = self.model(source=batch['img'], target=target['img'], verbose=True, it=i, ep=epoch)
                     else:
                         preds, adv_loss = self.model(source=batch['img'], target=target['img'], verbose=False, it=i, ep=epoch)
-
 
                     self.loss, self.loss_items = self.criterion(preds, batch, adv_loss)
                     if RANK != -1:

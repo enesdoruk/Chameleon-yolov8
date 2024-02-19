@@ -52,11 +52,12 @@ class DetectionModel(nn.Module):
                                 backb7, 
                                 backb10)  
             
-            grl_b10_s = self.model[0](backb10, 0)            
-            grl_b10_t = self.model[0](backb10_t, 1)
+
+            grl_b10_s = self.model[0](backb10, 0, grl=True)            
+            grl_b10_t = self.model[0](backb10_t, 1, grl=True)
             
             adv_loss = grl_b10_s + grl_b10_t
-            
+                        
             if verbose:
                 for i in range(source.shape[0]):
                     visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')], save_dir=os.getcwd())
