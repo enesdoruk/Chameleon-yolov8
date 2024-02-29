@@ -1,28 +1,15 @@
 import torch 
-import torch.nn as nn
+import numpy as np
 
+def multi_scale_align(backbone) -> torch.Tensor:
+    hcf = np.gcd(np.gcd(backbone[0].shape[2], backbone[1].shape[2]), backbone[2].shape[2])
     
-class MultiScaleAlig(nn.Module):
-    def __init__(self) -> None:
-        super(MultiScaleAlig, self).__init__()
-        
-        self.br2_1 = nn.Conv2d(512, 512, kernel_size=3, stride=2, padding=2, dilation=2)
-        self.prelu2_1 = nn.PReLU()
-        
-        self.br3_1 = nn.Conv2d(256, 256, kernel_size=3, stride=4, padding=2, dilation=2)
-        self.prelu3_1 = nn.PReLU()
-        
-        self.conv = nn.Conv2d(1024+512+256, 1024+512+256, kernel_size=1)
-        self.prelu = nn.PReLU()
-            
-    def forward(self, in_br1, in_br2, in_br3) -> torch.Tensor: 
-        import pdb; pdb.set_trace()
-        out_br2_1 = self.prelu2_1(self.br2_1(in_br2))
-        
-        out_br3_1 = self.prelu3_1(self.br3_1(in_br3))
-        
-        out_cat = torch.cat([in_br1, out_br2_1, out_br3_1], dim=1)
-        
-        out_conv = self.prelu(self.conv(out_cat))
-   
-        return out_conv
+    bacb_list = []
+    
+    for bacb in backbone: 
+        for i in range(0, bacb.shape[2] // hcf):
+            bacb_list.append(bacb[:, :, hcf*i : hcf*(i+1), hcf*i : hcf*(i+1)])
+    
+    backbones_feat = torch.cat(bacb_list, dim=1)
+    
+    return backbones_feat

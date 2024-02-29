@@ -1,12 +1,6 @@
-import cv2
 import torch
-import wandb
-import numpy as np
 import torch.nn as nn
-from scipy.ndimage import zoom
-from mmengine.visualization import Visualizer
 
-import os
 import sys
 sys.path.insert(0, "/AI/syndet-yolo")
 
@@ -14,7 +8,7 @@ from syndet.modules import  Detect
 from syndet.backbone import Backbone
 from syndet.head import Head
 from syndet.discriminator import Discriminator
-from syndet.multi_scale_alg import MultiScaleAlig
+from syndet.multi_scale_alg import multi_scale_align
 
 
 class DetectionModel(nn.Module):
@@ -22,8 +16,7 @@ class DetectionModel(nn.Module):
         super(DetectionModel, self).__init__()
         
         self.layers = []
-        self.layers.append(MultiScaleAlig())
-        self.layers.append(Discriminator(num_convs=4, in_channels=1792, grad_reverse_lambda=0.02))
+        self.layers.append(Discriminator(num_convs=2, in_channels=3072, grad_reverse_lambda=0.02))
         self.layers.append(Backbone())
         self.layers.append(Head())
         self.model = nn.Sequential(*self.layers)
@@ -38,30 +31,30 @@ class DetectionModel(nn.Module):
             m.bias_init() 
 
     def forward(self, source, target=None):      
-        backb5, backb7, backb10 = self.model[2](source)
+        backb5, backb7, backb10 = self.model[1](source)
         
         if target is None:
-            head, _ = self.model[3](backb5,
+            head, _ = self.model[2](backb5,
                                 backb7, 
                                 backb10)  
             return head
         
         else:
-            backb5_t, backb7_t, backb10_t = self.model[2](target)    
+            backb5_t, backb7_t, backb10_t = self.model[1](target)    
             
-            head, head_convs_s = self.model[3](backb5,
+            head, head_convs_s = self.model[2](backb5,
                                 backb7, 
                                 backb10)  
             
-            _, head_convs_t = self.model[3](backb5_t,
+            _, head_convs_t = self.model[2](backb5_t,
                                 backb7_t, 
                                 backb10_t)  
             
-            source_disc_feat = self.model[0](head_convs_t[0], head_convs_t[1], head_convs_t[2])
-            target_disc_feat = self.model[0](head_convs_s[0], head_convs_s[1], head_convs_s[2])
+            source_disc_feat = multi_scale_align([head_convs_t[0], head_convs_t[1], head_convs_t[2]])
+            target_disc_feat = multi_scale_align([head_convs_s[0], head_convs_s[1], head_convs_s[2]])
             
-            grl_b10_s = self.model[1](source_disc_feat, 0, grl=True)            
-            grl_b10_t = self.model[1](target_disc_feat, 1, grl=True)
+            grl_b10_s = self.model[0](source_disc_feat, 0, grl=True)            
+            grl_b10_t = self.model[0](target_disc_feat, 1, grl=True)
             
             adv_loss = grl_b10_s + grl_b10_t
             
