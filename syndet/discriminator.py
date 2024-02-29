@@ -33,7 +33,6 @@ class Discriminator(nn.Module):
             padding=1
         )
 
-        # initialization
         for modules in [self.dis_tower, self.cls_logits]:
             for l in modules.modules():
                 if isinstance(l, nn.Conv2d):

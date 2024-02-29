@@ -50,4 +50,4 @@ class Head(nn.Module):
         
         h23 = self.detect([h22, h19, h16])
         
-        return h23
+        return h23, [h22, h19, h16]
