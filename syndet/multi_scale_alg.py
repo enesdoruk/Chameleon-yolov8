@@ -18,7 +18,6 @@ class MultiScaleAlig(nn.Module):
         self.prelu = nn.PReLU()
             
     def forward(self, in_br1, in_br2, in_br3) -> torch.Tensor: 
-        import pdb; pdb.set_trace()
         out_br2_1 = self.mpool2_1(self.prelu2_1(self.br2_1(in_br2)))
         
         out_br3_1 = self.mpool3_1(self.prelu3_1(self.br3_1(in_br3)))
