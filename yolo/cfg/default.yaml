@@ -21,7 +21,7 @@ pretrained: False  # whether to use a pretrained model
 optimizer: SGD  # optimizer to use, choices=['SGD', 'Adam', 'AdamW', 'RMSProp']
 verbose: True  # whether to print verbose output
 seed: 0  # random seed for reproducibility
-deterministic: True  # whether to enable deterministic mode
+deterministic: False  # whether to enable deterministic mode
 single_cls: False  # train multi-class data as single-class
 rect: False  # rectangular training if mode='train' or rectangular validation if mode='val'
 cos_lr: False  # use cosine learning rate scheduler
