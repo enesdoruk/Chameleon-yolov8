@@ -1,0 +1,16 @@
+train: 
+  - /AI/syndet_datasets/urbansyn_yolo/images/train
+val: 
+  - /AI/syndet_datasets/kitti_yolo/images/test
+test: 
+  - /AI/syndet_datasets/kitti_yolo/images/test
+
+names:
+  0: bicycle
+  1: bus
+  2: car
+  3: motorcycle
+  4: person
+  5: rider
+  6: train
+  7: truck
