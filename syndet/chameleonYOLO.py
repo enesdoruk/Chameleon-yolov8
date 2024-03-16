@@ -1,10 +1,5 @@
-import cv2
 import torch
-import wandb
-import numpy as np
 import torch.nn as nn
-from scipy.ndimage import zoom
-from mmengine.visualization import Visualizer
 
 import os
 import sys
@@ -21,7 +16,7 @@ class DetectionModel(nn.Module):
         
         self.layers = []
         self.layers.append(Backbone())
-        self.layers.append(Head())
+        self.layers.append(Head(nc=4))
         self.model = nn.Sequential(*self.layers)
         
         m = self.model[-1].detect 

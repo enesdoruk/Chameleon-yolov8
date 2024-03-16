@@ -8,8 +8,9 @@ from syndet.modules import (Concat, Upsample, Detect, Conv, C2f)
 
 
 class Head(nn.Module):
-    def __init__(self, ) -> None:
+    def __init__(self, nc=8) -> None:
         self.layers = []
+        self.nc = nc
         super(Head, self).__init__()
         
         self.up1 = Upsample(1024, 2)
@@ -28,7 +29,7 @@ class Head(nn.Module):
         self.cat4 = Concat()
         self.c2f4 = C2f(1536, 1024, n=3, shortcut=True, g=1, e=0.5)
 
-        self.detect = Detect(nc=4, ch=(1024, 512, 256))
+        self.detect = Detect(nc= self.nc , ch=(1024, 512, 256))
 
         
     def forward(self, b5, b7, b10):

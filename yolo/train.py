@@ -23,7 +23,7 @@ from yolo.utils.torch_utils import de_parallel, torch_distributed_zero_first
 from torch.utils.data import ConcatDataset
 
 import wandb
-wandb.init(name='yolov8-default', sync_tensorboard=True)
+wandb.init(project='YOLO_KITTI_URBANSYN', name='base-training', sync_tensorboard=True)
 
 # BaseTrainer python usage
 class DetectionTrainer(BaseTrainer):
@@ -221,7 +221,6 @@ class Loss:
         targets = self.preprocess(targets.to(self.device), batch_size, scale_tensor=imgsz[[1, 0, 1, 0]])
         gt_labels, gt_bboxes = targets.split((1, 4), 2)  # cls, xyxy
         mask_gt = gt_bboxes.sum(2, keepdim=True).gt_(0)
-
         # pboxes
         pred_bboxes = self.bbox_decode(anchor_points, pred_distri)  # xyxy, (b, h*w, 4)
 

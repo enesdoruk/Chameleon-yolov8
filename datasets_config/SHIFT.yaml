@@ -7,10 +7,6 @@ test:
 
 names:
   0: Car
-  1: Van
-  2: Truck
-  3: Pedestrian
-  4: Person_sitting
-  5: Cyclist
-  6: Tram
-  7: Misc
+  1: Truck
+  2: Pedestrian
+  3: Cyclist
