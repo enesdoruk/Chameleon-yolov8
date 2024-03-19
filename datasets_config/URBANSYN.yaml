@@ -1,0 +1,12 @@
+train: 
+  - /AI/syndet_datasets/urbansyn_yolo/images/train
+val: 
+  - /AI/syndet_datasets/kitti_yolo/images/test
+test: 
+  - /AI/syndet_datasets/kitti_yolo/images/test
+
+names:
+  0: Car
+  1: Truck
+  2: Pedestrian
+  3: Cyclist

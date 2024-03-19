@@ -3,19 +3,19 @@ mode: train
 
 # Train settings -------------------------------------------------------------------------------------------------------
 model: yolo/models/chameleon.yaml
-data: datasets_config/SHIFT.yaml  # path to data file, i.e. coco128.yaml
+data: datasets_config/URBANSYN.yaml  # path to data file, i.e. coco128.yaml
 data_t: datasets_config/KITTI.yaml
-epochs: 50  # number of epochs to train for
+epochs: 100  # number of epochs to train for
 patience: 100  # epochs to wait for no observable improvement for early stopping of training
 batch: 4  # number of images per batch (-1 for AutoBatch)
 imgsz: 640  # size of input images as integer or w,h
 save: True  # save train checkpoints and predict results
-save_period: -1 # Save checkpoint every x epochs (disabled if < 1)
+save_period: 10 # Save checkpoint every x epochs (disabled if < 1)
 cache: False  # True/ram, disk or False. Use cache for data loading
 device: 0 # device to run on, i.e. cuda device=0 or device=0,1,2,3 or device=cpu
 workers: 8  # number of worker threads for data loading (per RANK if DDP)
-project: shift_experiments # project name
-name: trailer1 # experiment name, results saved to 'project/name' directory
+project: urbansyn_experiments # project name
+name: trailer # experiment name, results saved to 'project/name' directory
 exist_ok: False  # whether to overwrite existing experiment
 pretrained: False  # whether to use a pretrained model
 optimizer: SGD  # optimizer to use, choices=['SGD', 'Adam', 'AdamW', 'RMSProp']
@@ -27,7 +27,7 @@ rect: False  # rectangular training if mode='train' or rectangular validation if
 cos_lr: False  # use cosine learning rate scheduler
 close_mosaic: 0  # (int) disable mosaic augmentation for final epochs
 resume: False  # resume training from last checkpoint
-amp: True  # Automatic Mixed Precision (AMP) training, choices=[True, False], True runs AMP check
+amp: False  # Automatic Mixed Precision (AMP) training, choices=[True, False], True runs AMP check
 # Segmentation
 overlap_mask: True  # masks should overlap during training (segment train only)
 mask_ratio: 4  # mask downsample ratio (segment train only)

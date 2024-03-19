@@ -58,26 +58,4 @@ class DetectionModel(nn.Module):
             
             adv_loss = grl_b10_s + grl_b10_t
                         
-            if verbose:
-                for i in range(source.shape[0]):
-                    visualizer = Visualizer(vis_backends=[dict(type='LocalVisBackend')], save_dir=os.getcwd())
-                    img = np.array(source[i].cpu(), dtype=np.uint8).transpose(1,2,0)
-                    
-                    feat_corr_b5 = zoom(backb5[i].to(torch.float32).cpu().detach().numpy(), (1, 8, 8), order=1)
-                    feat_corr_b5 = torch.tensor(feat_corr_b5).to('cuda')
-                    drawn_img_b5 = visualizer.draw_featmap(feat_corr_b5, img, channel_reduction='select_max')
-                    
-                    feat_corr_b7 = zoom(backb7[i].to(torch.float32).cpu().detach().numpy(), (1, 16, 16), order=1)
-                    feat_corr_b7 = torch.tensor(feat_corr_b7).to('cuda')
-                    drawn_img_b7 = visualizer.draw_featmap(feat_corr_b7, img, channel_reduction='select_max')
-                    
-                    feat_corr_b10 = zoom(backb10[i].to(torch.float32).cpu().detach().numpy(), (1, 32, 32), order=1)
-                    feat_corr_b10 = torch.tensor(feat_corr_b10).to('cuda')
-                    drawn_img_b10 = visualizer.draw_featmap(feat_corr_b10, img, channel_reduction='select_max')
-                    
-                    act_img = cv2.hconcat([drawn_img_b5, drawn_img_b7, drawn_img_b10]) 
-
-                    images = wandb.Image(act_img, caption=f"epoch: {ep}, iteration: {it}, image: {i}")
-                    wandb.log({"feature_map": images})
-            
             return head, adv_loss
