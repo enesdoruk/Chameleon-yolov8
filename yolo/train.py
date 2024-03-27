@@ -23,7 +23,7 @@ from yolo.utils.torch_utils import de_parallel, torch_distributed_zero_first
 from torch.utils.data import ConcatDataset
 
 import wandb
-wandb.init(name='yolov8-default', sync_tensorboard=True)
+wandb.init(project='YOLO_KITTI_URBANSYN', name='grl_mscaledilated', sync_tensorboard=True)
 
 # BaseTrainer python usage
 class DetectionTrainer(BaseTrainer):
