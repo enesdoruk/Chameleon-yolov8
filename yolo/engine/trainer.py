@@ -260,8 +260,7 @@ class BaseTrainer:
         self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
         
         if RANK in (-1, 0):
-            self.test_loader = self.get_dataloader(self.testset_s, batch_size=self.batch_size * 2, rank=-1, mode='val')
-            self.test_loader_t = self.get_dataloader(self.testset_t, batch_size=self.batch_size * 2, rank=-1, mode='val')
+            self.test_loader = self.get_dataloader(self.testset_t, batch_size=self.batch_size * 2, rank=-1, mode='val')
             self.validator = self.get_validator()
             metric_keys = self.validator.metrics.keys + self.label_loss_items(prefix='val')
             self.metrics = dict(zip(metric_keys, [0] * len(metric_keys)))  # TODO: init metrics for plot_results()?
@@ -344,10 +343,12 @@ class BaseTrainer:
                 with torch.cuda.amp.autocast(self.amp):
                     batch = self.preprocess_batch(batch)
                     target = self.preprocess_batch(target)
+                    
+                    global_step = i + self.epoch * len(pbar)
 
-                    preds, adv_loss = self.model(source=batch['img'], target=target['img'])
+                    preds, adv_loss, d_const_loss = self.model(source=batch['img'], target=target['img'], global_step=global_step)
 
-                    self.loss, self.loss_items = self.criterion(preds, batch, adv_loss)
+                    self.loss, self.loss_items = self.criterion(preds, batch, adv_loss, d_const_loss)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \

@@ -19,3 +19,9 @@ class ChannelAttention(nn.Module):
 
         out = avg_out + max_out
         return self.sigmoid(out)
+    
+    
+def domain_discrepancy(out1, out2):
+    diff = out1 - out2
+    loss = torch.mean(torch.abs(diff))
+    return loss
