@@ -68,19 +68,16 @@ class DetectionModel(nn.Module):
             source_att = self.model[0](source_disc_feat)
             target_att = self.model[0](target_disc_feat)
             
-            source_feat_att = torch.mul(source_disc_feat, source_att)
-            target_feat_att = torch.mul(target_disc_feat, target_att)
-            
-            mean_tar_ca = self.tar_ca_last[0] * ema_alpha + (1. - ema_alpha) * torch.mean(target_feat_att, 0)
+            mean_tar_ca = self.tar_ca_last[0] * ema_alpha + (1. - ema_alpha) * torch.mean(target_att, 0)
             self.tar_ca_last[0] = mean_tar_ca.detach()
             
-            mean_src_ca = self.src_ca_last[0] * ema_alpha + (1. - ema_alpha) * torch.mean(source_feat_att, 0)
+            mean_src_ca = self.src_ca_last[0] * ema_alpha + (1. - ema_alpha) * torch.mean(source_att, 0)
             self.src_ca_last[0] = mean_src_ca.detach()
             
             d_const_loss = self.weight_d * domain_discrepancy(mean_src_ca, mean_tar_ca)
                             
-            grl_b10_s = self.model[2](source_feat_att, 0, grl=True)            
-            grl_b10_t = self.model[2](target_feat_att, 1, grl=True)
+            grl_b10_s = self.model[2](source_att, 0, grl=True)            
+            grl_b10_t = self.model[2](target_att, 1, grl=True)
             
             adv_loss = grl_b10_s + grl_b10_t
             
