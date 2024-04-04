@@ -296,9 +296,6 @@ class BaseTrainer:
         
         epoch = self.epochs  # predefine for resume fully trained model edge cases
         for epoch in range(self.start_epoch, self.epochs):
-            # if epoch % 5 == 0:
-            #     self.train_loader = self.get_dataloader(self.trainset_s, batch_size=self.batch_size, rank=RANK, mode='train')
-            #     self.train_loader_t = self.get_dataloader(self.trainset_t, batch_size=self.batch_size, rank=RANK, mode='train')
             self.epoch = epoch
             self.run_callbacks('on_train_epoch_start')
             self.model.train()
@@ -346,9 +343,9 @@ class BaseTrainer:
                     
                     global_step = i + self.epoch * len(pbar)
 
-                    preds, adv_loss, d_const_loss = self.model(source=batch['img'], target=target['img'], global_step=global_step)
+                    preds, adv_loss, d_const_loss, mlyrdist_loss = self.model(source=batch['img'], target=target['img'], global_step=global_step)
 
-                    self.loss, self.loss_items = self.criterion(preds, batch, adv_loss, d_const_loss)
+                    self.loss, self.loss_items = self.criterion(preds, batch, adv_loss, d_const_loss, mlyrdist_loss)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \
