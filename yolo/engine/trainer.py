@@ -343,9 +343,9 @@ class BaseTrainer:
                     
                     global_step = i + self.epoch * len(pbar)
 
-                    preds, adv_loss, d_const_loss, mlyrdist_loss = self.model(source=batch['img'], target=target['img'], global_step=global_step)
+                    preds, adv_loss, d_const_loss, mlyrdist_loss, local_disc_loss = self.model(source=batch['img'], target=target['img'], global_step=global_step)
 
-                    self.loss, self.loss_items = self.criterion(preds, batch, adv_loss, d_const_loss, mlyrdist_loss)
+                    self.loss, self.loss_items = self.criterion(preds, batch, adv_loss, d_const_loss, mlyrdist_loss, local_disc_loss)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \

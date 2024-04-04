@@ -1,0 +1,172 @@
+{
+    "os": "Linux-5.15.0-101-generic-x86_64-with-glibc2.17",
+    "python": "3.8.18",
+    "heartbeatAt": "2024-04-04T14:19:21.305849",
+    "startedAt": "2024-04-04T14:19:21.203820",
+    "docker": null,
+    "cuda": null,
+    "args": [],
+    "state": "running",
+    "program": "yolo/train.py",
+    "codePathLocal": "yolo/train.py",
+    "codePath": "yolo/train.py",
+    "git": {
+        "remote": "https://github.com/enesdoruk/syndet-yolo.git",
+        "commit": "7033706ce230063d0925d9ee33493c0af713eaa3"
+    },
+    "email": "enes.doruk@adastec.com",
+    "root": "/AI/syndet-yolo",
+    "host": "enesdoruk",
+    "username": "enesdoruk",
+    "executable": "/AI/anaconda3/envs/syndet/bin/python",
+    "cpu_count": 16,
+    "cpu_count_logical": 24,
+    "cpu_freq": {
+        "current": 3.3138333333333336,
+        "min": 800.0,
+        "max": 5100.0
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 1.332,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 5500.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 4300.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 4300.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 4300.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 4300.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 4300.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 4300.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 4300.0
+        },
+        {
+            "current": 3.4,
+            "min": 800.0,
+            "max": 4300.0
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 1600.7598304748535,
+            "used": 321.2605743408203
+        }
+    },
+    "gpu": "NVIDIA GeForce RTX 3080 Ti",
+    "gpu_count": 2,
+    "gpu_devices": [
+        {
+            "name": "NVIDIA GeForce RTX 3080 Ti",
+            "memory_total": 12884901888
+        },
+        {
+            "name": "NVIDIA GeForce RTX 3080 Ti",
+            "memory_total": 12884901888
+        }
+    ],
+    "memory": {
+        "total": 31.117652893066406
+    }
+}

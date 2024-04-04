@@ -11,6 +11,7 @@ from syndet.discriminator import Discriminator
 from syndet.multi_scale_alg import MultiScaleAlig
 from syndet.channel_attention import ChannelAttention, domain_discrepancy
 from syndet.multi_layer_disc import MultiLayerDisc
+from syndet.local_discriminator import LocalDiscriminator
 
 class DetectionModel(nn.Module):
     def __init__(self):
@@ -18,6 +19,7 @@ class DetectionModel(nn.Module):
         
         
         self.layers = []
+        self.layers.append(LocalDiscriminator())
         self.layers.append(MultiLayerDisc(1024, 512, 256, reduction=4))
         self.layers.append(ChannelAttention(in_planes=1024+512+256, ratio=4))
         self.layers.append(MultiScaleAlig())
@@ -41,34 +43,39 @@ class DetectionModel(nn.Module):
         self.ema_alpha = 0.999
 
     def forward(self, source, target=None, global_step=None):      
-        backb5, backb7, backb10 = self.model[4](source)
+        backb5, backb7, backb10 = self.model[5](source)
         
         if target is None:
-            head, _ = self.model[5](backb5,
+            head, _ = self.model[6](backb5,
                                 backb7, 
                                 backb10)  
             return head
         
         else:
-            backb5_t, backb7_t, backb10_t = self.model[4](target)    
+            backb5_t, backb7_t, backb10_t = self.model[5](target)   
             
-            head, head_convs_s = self.model[5](backb5,
+            local_disc_s = self.model[0](backb10, mode="source")
+            local_disc_t = self.model[0](backb10_t, mode="target")       
+            
+            local_disc_loss = (local_disc_t + local_disc_s) / 2
+                        
+            head, head_convs_s = self.model[6](backb5,
                                 backb7, 
                                 backb10)  
             
-            _, head_convs_t = self.model[5](backb5_t,
+            _, head_convs_t = self.model[6](backb5_t,
                                 backb7_t, 
                                 backb10_t)  
             
-            mlyrdist_loss = self.model[0](head_convs_t, head_convs_s)
+            mlyrdist_loss = self.model[1](head_convs_t, head_convs_s)
             
-            source_disc_feat = self.model[2](head_convs_t[0], head_convs_t[1], head_convs_t[2])
-            target_disc_feat = self.model[2](head_convs_s[0], head_convs_s[1], head_convs_s[2])
+            source_disc_feat = self.model[3](head_convs_t[0], head_convs_t[1], head_convs_t[2])
+            target_disc_feat = self.model[3](head_convs_s[0], head_convs_s[1], head_convs_s[2])
             
             ema_alpha = min(1 - 1 / (global_step+1), self.ema_alpha)
         
-            source_att = self.model[1](source_disc_feat)
-            target_att = self.model[1](target_disc_feat)
+            source_att = self.model[2](source_disc_feat)
+            target_att = self.model[2](target_disc_feat)
             
             source_feat_att = torch.mul(source_disc_feat, source_att)
             target_feat_att = torch.mul(target_disc_feat, target_att)
@@ -81,9 +88,9 @@ class DetectionModel(nn.Module):
             
             d_const_loss = self.weight_d * domain_discrepancy(mean_src_ca, mean_tar_ca)
                             
-            grl_b10_s = self.model[3](source_feat_att, 0, grl=True)            
-            grl_b10_t = self.model[3](target_feat_att, 1, grl=True)
+            grl_b10_s = self.model[4](source_feat_att, 0, grl=True)            
+            grl_b10_t = self.model[4](target_feat_att, 1, grl=True)
             
             adv_loss = grl_b10_s + grl_b10_t
             
-            return head, adv_loss, d_const_loss, mlyrdist_loss
+            return head, adv_loss, d_const_loss, mlyrdist_loss, local_disc_loss
