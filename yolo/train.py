@@ -6,7 +6,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, "/AI/syndet-yolo-grl")
+import warnings
+warnings.filterwarnings("ignore")
+
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from syndet.chameleonYOLO import DetectionModel
 from yolo.val import *
@@ -19,6 +23,7 @@ from yolo.utils.ops import xywh2xyxy
 from yolo.utils.plotting import plot_images, plot_labels, plot_results
 from yolo.utils.tal import TaskAlignedAssigner, dist2bbox, make_anchors
 from yolo.utils.torch_utils import de_parallel, torch_distributed_zero_first
+from syndet.FDL import FDL_loss
 
 import wandb
 wandb.init(name='yolov8-default', sync_tensorboard=True)
@@ -100,15 +105,15 @@ class DetectionTrainer(BaseTrainer):
 
     def get_validator(self):
         """Returns a DetectionValidator for YOLO model validation."""
-        self.loss_names = 'box_loss', 'cls_loss', 'dfl_loss', 'coral_loss'
+        self.loss_names = 'box_loss', 'cls_loss', 'dfl_loss', 'fdl_loss'
         return DetectionValidator(self.test_loader, save_dir=self.save_dir, args=copy(self.args))
 
-    def criterion(self, preds, batch,coral_loss=None):
+    def criterion(self, preds, batch, head_convs_s=None, head_convs_t=None):
         """Compute loss for YOLO prediction and ground-truth."""
         if not hasattr(self, 'compute_loss'):
             self.compute_loss = Loss(de_parallel(self.model))
-        if coral_loss is not None:
-            return self.compute_loss(preds, batch, coral_loss)
+        if head_convs_s is not None and head_convs_t is not None:
+            return self.compute_loss(preds, batch, head_convs_s, head_convs_t)
         else:
             return self.compute_loss(preds, batch)
 
@@ -172,6 +177,9 @@ class Loss:
         self.bbox_loss = BboxLoss(m.reg_max - 1, use_dfl=self.use_dfl).to(device)
         self.proj = torch.arange(m.reg_max, dtype=torch.float, device=device)
         self.disc = nn.NLLLoss().to(device)
+        
+        self.chns = [ 1024, 512, 256]
+        self.furier_loss = FDL_loss(chns=self.chns).to(device)
 
     def preprocess(self, targets, batch_size, scale_tensor):
         """Preprocesses the target counts and matches with the input batch size to output a tensor."""
@@ -199,7 +207,7 @@ class Loss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, preds, batch,coral_loss=None):
+    def __call__(self, preds, batch, head_convs_s=None, head_convs_t=None):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
         
         loss = torch.zeros(4, device=self.device)  # box, cls, dfl
@@ -246,8 +254,10 @@ class Loss:
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
         
-        if coral_loss is not None:
-            loss[3] = coral_loss
+        if head_convs_s is not None and head_convs_t is not None:
+            loss[3] =  self.furier_loss(head_convs_s, head_convs_t)
+            loss[3] *= self.hyp.disc
+
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
 

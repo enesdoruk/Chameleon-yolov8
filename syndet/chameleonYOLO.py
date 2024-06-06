@@ -8,13 +8,13 @@ from mmengine.visualization import Visualizer
 
 import os
 import sys
-sys.path.insert(0, "/AI/syndet-yolo-grl")
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 
 from syndet.modules import  Detect
 from syndet.backbone import Backbone
 from syndet.head import Head
-from syndet.coral import coral
-
+from syndet.FDL import FDL_loss
 
 class DetectionModel(nn.Module):
     def __init__(self):
@@ -42,7 +42,7 @@ class DetectionModel(nn.Module):
         backb5, backb7, backb10 = self.model[0](x)
         
         if target is None:
-            head = self.model[1](backb5,
+            head, _ = self.model[1](backb5,
                                 backb7, 
                                 backb10)  
             return head
@@ -50,14 +50,14 @@ class DetectionModel(nn.Module):
         else:
             backb5_t, backb7_t, backb10_t = self.model[0](target) 
             
-            head = self.model[1](backb5,
+            head_s, head_convs_s = self.model[1](backb5,
                                 backb7, 
                                 backb10)  
             
-            coral_feat_s = self.linear(self.flat(backb10)).view(-1).unsqueeze(1)
-            coral_feat_t = self.linear(self.flat(backb10_t)).view(-1).unsqueeze(1)
-        
-            coral_loss = coral(coral_feat_s, coral_feat_t)
+            head_t, head_convs_t  = self.model[1](backb5_t,
+                                backb7_t, 
+                                backb10_t)  
+            
                 
             if verbose:
                 for i in range(x.shape[0]):
@@ -81,4 +81,17 @@ class DetectionModel(nn.Module):
                     images = wandb.Image(act_img, caption=f"epoch: {ep}, iteration: {it}, image: {i}")
                     wandb.log({"feature_map": images})
             
-            return head, coral_loss
+            return head_s, head_convs_s, head_convs_t
+        
+if __name__ == "__main__":
+    source = torch.randn(1, 3, 640, 640).cuda()
+    target = torch.randn(1, 3, 640, 640).cuda()
+    
+    model = DetectionModel().cuda()
+    
+    head, head_convs_s, head_convs_t  = model(source, target)
+    
+    import pdb; pdb.set_trace()
+    
+    
+    

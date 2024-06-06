@@ -347,13 +347,11 @@ class BaseTrainer:
                     target = self.preprocess_batch(target)
 
                     if epoch % 5 == 0 and i % 600 == 0 and i > 0 and epoch > 0:
-                        preds, coral_loss = self.model(x=batch['img'], target=target['img'], verbose=True, it=i, ep=epoch)
+                        preds, head_convs_s, head_convs_t = self.model(x=batch['img'], target=target['img'], verbose=False, it=i, ep=epoch)
                     else:
-                        preds, coral_loss = self.model(x=batch['img'], target=target['img'], verbose=False, it=i, ep=epoch)
+                        preds, head_convs_s, head_convs_t = self.model(x=batch['img'], target=target['img'], verbose=False, it=i, ep=epoch)
 
-                    coral_loss = coral_loss * self.args.lambda_coral
-
-                    self.loss, self.loss_items = self.criterion(preds, batch, coral_loss)
+                    self.loss, self.loss_items = self.criterion(preds, batch, head_convs_s, head_convs_t)
                     if RANK != -1:
                         self.loss *= world_size
                     self.tloss = (self.tloss * i + self.loss_items) / (i + 1) if self.tloss is not None \
@@ -518,7 +516,7 @@ class BaseTrainer:
         """Build dataset"""
         raise NotImplementedError('build_dataset function not implemented in trainer')
 
-    def criterion(self, preds, batch):
+    def criterion(self, preds, batch, head_convs_s, head_convs_t):
         """
         Returns loss and individual loss items as Tensor.
         """
