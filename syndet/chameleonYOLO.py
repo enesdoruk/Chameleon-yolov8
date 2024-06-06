@@ -83,15 +83,7 @@ class DetectionModel(nn.Module):
             
             return head_s, head_convs_s, head_convs_t
         
-if __name__ == "__main__":
-    source = torch.randn(1, 3, 640, 640).cuda()
-    target = torch.randn(1, 3, 640, 640).cuda()
-    
-    model = DetectionModel().cuda()
-    
-    head, head_convs_s, head_convs_t  = model(source, target)
-    
-    import pdb; pdb.set_trace()
+
     
     
     
