@@ -18,7 +18,7 @@ from tqdm import tqdm
 
 import os
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/yolov8")
+sys.path.insert(0,  "/AI/syndet-yolo-grl")
 
 from nn.autobackend import check_class_names
 from yolo.utils import (DATASETS_DIR, LOGGER, NUM_THREADS, ROOT, SETTINGS_YAML, clean_url, colorstr, emojis,
@@ -115,7 +115,6 @@ def verify_image_label(args):
                     lb = lb[i]  # remove duplicates
                     if segments:
                         segments = [segments[x] for x in i]
-                    msg = f'{prefix}WARNING ⚠️ {im_file}: {nl - len(i)} duplicate labels removed'
             else:
                 ne = 1  # label empty
                 lb = np.zeros((0, (5 + nkpt * ndim)), dtype=np.float32) if keypoint else np.zeros(

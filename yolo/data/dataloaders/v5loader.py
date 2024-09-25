@@ -152,7 +152,8 @@ def create_dataloader(path,
                   pin_memory=PIN_MEMORY,
                   collate_fn=LoadImagesAndLabels.collate_fn,
                   worker_init_fn=seed_worker,
-                  generator=generator), dataset
+                  generator=generator,
+                  drop_last=True), dataset
 
 
 class InfiniteDataLoader(dataloader.DataLoader):
@@ -1031,7 +1032,6 @@ def verify_image_label(args):
                     lb = lb[i]  # remove duplicates
                     if segments:
                         segments = [segments[x] for x in i]
-                    msg = f'{prefix}WARNING ⚠️ {im_file}: {nl - len(i)} duplicate labels removed'
             else:
                 ne = 1  # label empty
                 lb = np.zeros((0, 5), dtype=np.float32)

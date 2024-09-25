@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/yolov8")
+sys.path.insert(0, "/AI/syndet-yolo")
 
 from yolo.data.build import build_dataloader, build_yolo_dataset
 from yolo.data.dataloaders.v5loader import create_dataloader
@@ -282,12 +282,12 @@ def val(cfg=DEFAULT_CFG, use_python=False):
     data = "PRESIL.yaml" #cfg.data or 'coco128.yaml'
 
     args = dict(model=model, data=data)
-    if use_python:
-        from yolo.engine.model import YOLO
-        YOLO(model).val(**args)
-    else:
-        validator = DetectionValidator(args=args)
-        validator(model=args['model'])
+    # if use_python:
+    #     from yolo.engine.model import YOLO
+    #     YOLO(model).val(**args)
+    # else:
+    validator = DetectionValidator(args=args)
+    validator(model=args['model'])
 
 
 if __name__ == '__main__':

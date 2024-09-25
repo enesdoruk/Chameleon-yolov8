@@ -4,7 +4,7 @@ import torch
 
 import os
 import sys
-sys.path.insert(0, os.path.expanduser('~') + "/yolov8")
+sys.path.insert(0, "/AI/syndet-yolo")
 
 from yolo.engine.predictor import BasePredictor
 from yolo.engine.results import Results

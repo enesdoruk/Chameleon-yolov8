@@ -6,9 +6,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-sys.path.insert(0, os.path.expanduser('~') + "/yolov8")
+sys.path.insert(0, "/AI/syndet-yolo")
 
-from nn.tasks import DetectionModel
+from syndet.chameleonYOLO import DetectionModel
 from yolo.val import *
 from yolo.data.build import build_dataloader, build_yolo_dataset
 from yolo.data.dataloaders.v5loader import create_dataloader
@@ -20,9 +20,10 @@ from yolo.utils.plotting import plot_images, plot_labels, plot_results
 from yolo.utils.tal import TaskAlignedAssigner, dist2bbox, make_anchors
 from yolo.utils.torch_utils import de_parallel, torch_distributed_zero_first
 
-import wandb
-wandb.init(project='Yolo8', name='yolov8-default', sync_tensorboard=True)
+from torch.utils.data import ConcatDataset
 
+import wandb
+wandb.init(project='YOLO_KITTI_URBANSYN', name='grl_mscaledilated_without_dacNetandAtt_mlyrdisc', sync_tensorboard=True)
 
 # BaseTrainer python usage
 class DetectionTrainer(BaseTrainer):
@@ -36,7 +37,6 @@ class DetectionTrainer(BaseTrainer):
             batch (int, optional): Size of batches, this is for `rect`. Defaults to None.
         """
         gs = max(int(de_parallel(self.model).stride.max() if self.model else 0), 32)
-        gs=32
         return build_yolo_dataset(self.args, img_path, batch, self.data, mode=mode, rect=mode == 'val', stride=gs)
 
     def get_dataloader(self, dataset_path, batch_size, rank=0, mode='train'):
@@ -51,6 +51,7 @@ class DetectionTrainer(BaseTrainer):
                                      imgsz=self.args.imgsz,
                                      batch_size=batch_size,
                                      stride=gs,
+                                     drop_last=True,
                                      hyp=vars(self.args),
                                      augment=mode == 'train',
                                      cache=self.args.cache,
@@ -65,6 +66,7 @@ class DetectionTrainer(BaseTrainer):
         assert mode in ['train', 'val']
         with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
             dataset = self.build_dataset(dataset_path, mode, batch_size)
+
         shuffle = mode == 'train'
         if getattr(dataset, 'rect', False) and shuffle:
             LOGGER.warning("WARNING ⚠️ 'rect=True' is incompatible with DataLoader shuffle, setting shuffle=False")
@@ -90,25 +92,29 @@ class DetectionTrainer(BaseTrainer):
 
     def get_model(self, cfg=None, weights=None, verbose=True):
         """Return a YOLO detection model."""
+        #from nn.tasks import DetectionModel
         #model = DetectionModel(cfg, nc=self.data['nc'], verbose=verbose and RANK == -1)
-        #if weights:
-        #    model.load(weights)
-        from SawYOLO.sawyolo import DetectionModel
+
         model = DetectionModel()
         if weights:
             model.load(weights)
+        
         return model
 
     def get_validator(self):
         """Returns a DetectionValidator for YOLO model validation."""
-        self.loss_names = 'box_loss', 'cls_loss', 'dfl_loss'
+        self.loss_names = 'box_loss', 'cls_loss', 'dfl_loss', 'adv_loss', 'dac_loss', 'mlayer_disc_loss', 'local_disc_loss'
         return DetectionValidator(self.test_loader, save_dir=self.save_dir, args=copy(self.args))
 
-    def criterion(self, preds, batch):
+    def criterion(self, preds, batch, adv_loss=None, d_const_loss=None, mlyrdist_loss=None, local_disc_loss=None):
         """Compute loss for YOLO prediction and ground-truth."""
         if not hasattr(self, 'compute_loss'):
             self.compute_loss = Loss(de_parallel(self.model))
-        return self.compute_loss(preds, batch)
+
+        if adv_loss is not None and d_const_loss is not None and mlyrdist_loss is not None and local_disc_loss is not None:
+            return self.compute_loss(preds, batch, adv_loss, d_const_loss, mlyrdist_loss, local_disc_loss)
+        else:
+            return self.compute_loss(preds, batch)
 
     def label_loss_items(self, loss_items=None, prefix='train'):
         """
@@ -155,7 +161,7 @@ class Loss:
         device = next(model.parameters()).device  # get model device
         h = model.args  # hyperparameters
 
-        m = model.model[-1]  # Detect() module
+        m = model.model[-1].detect  # Detect() module
         self.bce = nn.BCEWithLogitsLoss(reduction='none')
         self.hyp = h
         self.stride = m.stride  # model strides
@@ -196,9 +202,11 @@ class Loss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, preds, batch):
+    def __call__(self, preds, batch, adv_loss=None, d_const_loss=None, mlyrdist_loss=None, local_disc_loss=None):
         """Calculate the sum of the loss for box, cls and dfl multiplied by batch size."""
-        loss = torch.zeros(3, device=self.device)  # box, cls, dfl
+        
+        loss = torch.zeros(7, device=self.device)  # box, cls, dfl
+
         feats = preds[1] if isinstance(preds, tuple) else preds
         pred_distri, pred_scores = torch.cat([xi.view(feats[0].shape[0], self.no, -1) for xi in feats], 2).split(
             (self.reg_max * 4, self.nc), 1)
@@ -235,10 +243,16 @@ class Loss:
             target_bboxes /= stride_tensor
             loss[0], loss[2] = self.bbox_loss(pred_distri, pred_bboxes, anchor_points, target_bboxes, target_scores,
                                               target_scores_sum, fg_mask)
-
+        
+  
         loss[0] *= self.hyp.box  # box gain
         loss[1] *= self.hyp.cls  # cls gain
         loss[2] *= self.hyp.dfl  # dfl gain
+        if adv_loss is not None and d_const_loss is not None and local_disc_loss is not None:
+            loss[3] = adv_loss
+            loss[4] = d_const_loss
+            loss[5] = mlyrdist_loss
+            loss[6] = local_disc_loss
 
         return loss.sum() * batch_size, loss.detach()  # loss(box, cls, dfl)
 
